@@ -153,6 +153,10 @@ export default function UserProfile() {
       navigate('/auth');
       return;
     }
+    if (user.id === sos.user_id) {
+      navigate('/messages');
+      return;
+    }
     navigate(`/messages?user=${sos.user_id}&sos=${sos.id}`);
   };
 

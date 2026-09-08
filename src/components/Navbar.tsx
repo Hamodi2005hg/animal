@@ -21,12 +21,32 @@ export default function Navbar() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (user) {
+    if (user && supabase) {
       fetchNotifications();
       fetchProfile();
       
-      const interval = setInterval(fetchNotifications, 15000); // Check every 15s
-      return () => clearInterval(interval);
+      const interval = setInterval(fetchNotifications, 8000); // Check every 8s
+
+      const notifSubscription = supabase
+        .channel(`user_notifications_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          },
+          () => {
+            fetchNotifications();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        clearInterval(interval);
+        notifSubscription.unsubscribe();
+      };
     }
   }, [user]);
 
@@ -51,23 +71,61 @@ export default function Navbar() {
 
   const fetchNotifications = async () => {
     if (!supabase || !user) return;
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*, actor:actor_id(username, avatar_url, email)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(20);
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
 
-    if (!error && data) {
-      setNotifications(data as any);
-      setUnreadCount(data.filter(n => !n.is_read).length);
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const actorIds = Array.from(new Set(data.map((n: any) => n.actor_id).filter(Boolean)));
+        let profileMap: Record<string, any> = {};
+
+        if (actorIds.length > 0) {
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url, email')
+            .in('id', actorIds);
+
+          if (profilesData) {
+            profilesData.forEach((p: any) => {
+              profileMap[p.id] = p;
+            });
+          }
+        }
+
+        const enrichedNotifications = data.map((n: any) => ({
+          ...n,
+          actor: profileMap[n.actor_id] || null
+        }));
+
+        setNotifications(enrichedNotifications as any);
+        setUnreadCount(enrichedNotifications.filter((n: any) => !n.is_read).length);
+      } else {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
     }
   };
 
   const markNotificationsRead = async () => {
     if (!supabase || !user || unreadCount === 0) return;
-    await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
-    setUnreadCount(0);
+    try {
+      await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error('Failed to mark notifications read:', err);
+    }
   };
 
   const toggleDarkMode = () => {
@@ -95,6 +153,7 @@ export default function Navbar() {
     if (n.type === 'vote') return `${actorName} voted on your SOS call`;
     if (n.type === 'comment') return `${actorName} commented on your SOS call`;
     if (n.type === 'reply') return `${actorName} replied to your comment`;
+    if (n.type === 'message') return `${actorName} sent you a message`;
     return 'New notification';
   };
 
@@ -169,7 +228,11 @@ export default function Navbar() {
                               key={n.id} 
                               onClick={() => {
                                 setShowNotifications(false);
-                                navigate(`/sos/${n.post_id}`);
+                                if (n.type === 'message') {
+                                  navigate(`/messages?user=${n.actor_id}&sos=${n.post_id}`);
+                                } else {
+                                  navigate(`/sos/${n.post_id}`);
+                                }
                               }}
                               className={`p-3 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer flex gap-3 ${!n.is_read ? 'bg-indigo-50/50 dark:bg-indigo-900/20' : ''}`}
                             >

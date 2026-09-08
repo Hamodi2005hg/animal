@@ -62,7 +62,7 @@ export type AppNotification = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'vote' | 'comment' | 'reply';
+  type: 'vote' | 'comment' | 'reply' | 'message';
   post_id: string;
   is_read: boolean;
   created_at: string;
