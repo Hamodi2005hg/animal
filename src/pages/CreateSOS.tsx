@@ -2,15 +2,16 @@ import { useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
-import { Upload, AlertCircle } from 'lucide-react';
+import { Upload, Camera, AlertCircle, X } from 'lucide-react';
 import { Country, State } from 'country-state-city';
+import imageCompression from 'browser-image-compression';
 
 export default function CreateSOS() {
   const [countryCode, setCountryCode] = useState('');
   const [regionCode, setRegionCode] = useState('');
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -24,33 +25,59 @@ export default function CreateSOS() {
   }, [countryCode]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setImageFile(e.target.files[0]);
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      if (imageFiles.length + newFiles.length > 5) {
+        setError("You can only upload up to 5 images.");
+        return;
+      }
+      setImageFiles(prev => [...prev, ...newFiles]);
+      setError(null);
     }
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !supabase) return;
+    if (imageFiles.length === 0) {
+      setError("Please provide at least one photo of the animal.");
+      return;
+    }
     
     setLoading(true);
     setError(null);
 
     try {
-      let image_url = '';
+      const uploadedUrls: string[] = [];
 
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
+      // Compress and Upload each image
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        
+        // Compression options
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true
+        };
+        
+        const compressedFile = await imageCompression(file, options);
+        
+        const fileExt = compressedFile.name.split('.').pop() || 'jpg';
+        const fileName = `${Date.now()}_${i}.${fileExt}`;
         const filePath = `${user.id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('animal-images')
-          .upload(filePath, imageFile);
+          .upload(filePath, compressedFile);
 
         if (uploadError) {
           if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('relation "buckets" does not exist')) {
-             throw new Error('Supabase configuration error: Please create a public storage bucket named "animal-images" in your Supabase dashboard.');
+             throw new Error('Supabase configuration error: Please create a public storage bucket named "animal-images".');
           }
           throw uploadError;
         }
@@ -59,8 +86,11 @@ export default function CreateSOS() {
           .from('animal-images')
           .getPublicUrl(filePath);
           
-        image_url = publicUrlData.publicUrl;
+        uploadedUrls.push(publicUrlData.publicUrl);
       }
+
+      // Join URLs with a comma to store in a single text column
+      const image_urls_string = uploadedUrls.join(',');
 
       const selectedCountry = Country.getCountryByCode(countryCode)?.name || '';
       const selectedState = State.getStateByCodeAndCountry(regionCode, countryCode)?.name || regionCode;
@@ -74,15 +104,12 @@ export default function CreateSOS() {
             region: selectedState,
             area: area,
             description,
-            image_url,
+            image_url: image_urls_string,
             status: 'open'
           }
         ]);
 
       if (insertError) {
-        if (insertError.code === 'PGRST204' || insertError.message.includes('area')) {
-           throw new Error('Database schema error: Please add an "area" column (Type: text) to your "animal_sos" table in Supabase.');
-        }
         throw insertError;
       }
 
@@ -165,9 +192,6 @@ export default function CreateSOS() {
                   <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
                 ))}
               </select>
-              {countryCode && states.length === 0 && (
-                <p className="mt-1 text-xs text-gray-500">No states available for this country, you can leave it blank.</p>
-              )}
             </div>
           </div>
 
@@ -198,22 +222,41 @@ export default function CreateSOS() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Upload Photo (صورة الحيوان)</label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md bg-gray-50 hover:bg-gray-100 transition-colors">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600 justify-center">
-                  <label htmlFor="file-upload" className="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                    <span>Upload a file</span>
-                    <input id="file-upload" name="file-upload" type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
-                  </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Photos (الصور) - {imageFiles.length}/5</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              
+              {/* Display selected images */}
+              {imageFiles.map((file, index) => (
+                <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-gray-200">
+                  <img src={URL.createObjectURL(file)} alt={`upload-${index}`} className="object-cover w-full h-full" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-                <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
-                {imageFile && (
-                  <p className="text-sm font-medium text-green-600 mt-2">Selected: {imageFile.name}</p>
-                )}
-              </div>
+              ))}
+
+              {/* Upload buttons (only show if < 5 images) */}
+              {imageFiles.length < 5 && (
+                <>
+                  <label className="aspect-square flex flex-col items-center justify-center border-2 border-gray-300 border-dashed rounded-md bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
+                    <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                    <span className="text-xs text-gray-500 font-medium">Gallery</span>
+                    <input type="file" multiple accept="image/*" className="sr-only" onChange={handleImageChange} />
+                  </label>
+
+                  <label className="aspect-square flex flex-col items-center justify-center border-2 border-gray-300 border-dashed rounded-md bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
+                    <Camera className="h-8 w-8 text-gray-400 mb-2" />
+                    <span className="text-xs text-gray-500 font-medium">Camera</span>
+                    <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={handleImageChange} />
+                  </label>
+                </>
+              )}
             </div>
+            <p className="mt-2 text-xs text-gray-500">You can upload up to 5 photos. High quality images will be compressed automatically.</p>
           </div>
 
           <div className="flex justify-end pt-4">
