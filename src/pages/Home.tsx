@@ -53,7 +53,7 @@ export default function Home() {
     // Fetch SOS with votes
     const { data, error } = await supabase
       .from('animal_sos')
-      .select('*, profiles(email), sos_votes(vote_value)')
+      .select('*, profiles(email, username, avatar_url), sos_votes(vote_value)')
       .eq('status', 'open') // Only show active calls in feed
       .order('created_at', { ascending: false });
 
@@ -69,7 +69,7 @@ export default function Home() {
       // Fallback if sos_votes relation doesn't exist yet
       const { data: fallbackData } = await supabase
         .from('animal_sos')
-        .select('*, profiles(email)')
+        .select('*, profiles(email, username, avatar_url)')
         .eq('status', 'open')
         .order('created_at', { ascending: false });
       
@@ -173,6 +173,17 @@ export default function Home() {
           // Revert on other errors
           setSosList(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
         }
+      } else {
+        // Notification logic
+        const sos = sosList.find(s => s.id === sosId);
+        if (sos && sos.user_id !== user.id) {
+          await supabase.from('notifications').insert({
+            user_id: sos.user_id,
+            actor_id: user.id,
+            type: 'vote',
+            post_id: sos.id
+          }).catch(() => {}); // ignore error if table missing
+        }
       }
     } catch(err) {
       console.error(err);
@@ -250,12 +261,19 @@ export default function Home() {
                 
                 <div className="p-4 flex flex-col">
                   {/* Header */}
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 flex-wrap">
+                     {sos.profiles?.avatar_url ? (
+                       <img src={sos.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100" />
+                     ) : (
+                       <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-[10px]">
+                         {(sos.profiles?.username || sos.profiles?.email || 'U').charAt(0).toUpperCase()}
+                       </div>
+                     )}
+                     <span className="font-bold text-gray-900">{sos.profiles?.username || sos.profiles?.email?.split('@')[0] || 'user'}</span>
+                     <span>•</span>
                      {sos.animal_type && (
                        <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">{sos.animal_type}</span>
                      )}
-                     <span>•</span>
-                     <span>Posted by u/{sos.profiles?.email?.split('@')[0] || 'user'}</span>
                      <span>•</span>
                      <span>{new Date(sos.created_at).toLocaleDateString()}</span>
                      <span>•</span>

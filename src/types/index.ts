@@ -1,6 +1,8 @@
 export type Profile = {
   id: string;
   email: string;
+  username?: string;
+  avatar_url?: string;
   created_at: string;
 };
 
@@ -47,4 +49,15 @@ export type Message = {
   content: string;
   created_at: string;
   sender?: Profile;
+};
+
+export type AppNotification = {
+  id: string;
+  user_id: string;
+  actor_id: string;
+  type: 'vote' | 'comment' | 'reply';
+  post_id: string;
+  is_read: boolean;
+  created_at: string;
+  actor?: Profile;
 };

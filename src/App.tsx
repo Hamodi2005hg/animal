@@ -12,12 +12,13 @@ import CreateSOS from './pages/CreateSOS';
 import Messages from './pages/Messages';
 import MyCalls from './pages/MyCalls';
 import SOSDetails from './pages/SOSDetails';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
+        <div className="min-h-screen font-sans">
           <Navbar />
           <Routes>
             <Route path="/" element={<Home />} />
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/sos/:id" element={<SOSDetails />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/my-calls" element={<MyCalls />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </div>
       </BrowserRouter>

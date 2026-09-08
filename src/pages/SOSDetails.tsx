@@ -26,7 +26,7 @@ export default function SOSDetails() {
     // Fetch SOS
     const { data: sosData } = await supabase
       .from('animal_sos')
-      .select('*, profiles(email)')
+      .select('*, profiles(email, username, avatar_url)')
       .eq('id', id)
       .single();
 
@@ -37,7 +37,7 @@ export default function SOSDetails() {
     // Fetch comments
     const { data: commentsData, error: commentsError } = await supabase
       .from('sos_comments')
-      .select('*, profiles(email)')
+      .select('*, profiles(email, username, avatar_url)')
       .eq('sos_id', id)
       .order('created_at', { ascending: true });
 
@@ -77,6 +77,26 @@ export default function SOSDetails() {
             throw error;
          }
       } else {
+         // Add Notification
+         if (sos && sos.user_id !== user.id && !replyingTo) {
+           await supabase.from('notifications').insert({
+             user_id: sos.user_id,
+             actor_id: user.id,
+             type: 'comment',
+             post_id: sos.id
+           }).catch(() => {});
+         } else if (replyingTo) {
+           const parentComment = comments.find(c => c.id === replyingTo);
+           if (parentComment && parentComment.user_id !== user.id) {
+             await supabase.from('notifications').insert({
+               user_id: parentComment.user_id,
+               actor_id: user.id,
+               type: 'reply',
+               post_id: sos?.id || id
+             }).catch(() => {});
+           }
+         }
+
          setNewComment('');
          setReplyingTo(null);
          fetchSOSDetails();
@@ -118,7 +138,19 @@ export default function SOSDetails() {
       </button>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
-         <h1 className="text-2xl font-bold mb-4">{sos.animal_type ? `${sos.animal_type} SOS in ${sos.region}` : `SOS in ${sos.region}`}</h1>
+         <div className="flex items-center gap-3 mb-4">
+           {sos.profiles?.avatar_url ? (
+             <img src={sos.profiles.avatar_url} alt="User" className="w-10 h-10 rounded-full object-cover bg-gray-100" />
+           ) : (
+             <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm">
+               {(sos.profiles?.username || sos.profiles?.email || 'U').charAt(0).toUpperCase()}
+             </div>
+           )}
+           <div>
+             <h1 className="text-xl font-bold">{sos.animal_type ? `${sos.animal_type} SOS in ${sos.region}` : `SOS in ${sos.region}`}</h1>
+             <p className="text-xs text-gray-500">Posted by {sos.profiles?.username || sos.profiles?.email?.split('@')[0] || 'user'} • {new Date(sos.created_at).toLocaleDateString()}</p>
+           </div>
+         </div>
          <p className="text-gray-800 whitespace-pre-wrap">{sos.description}</p>
       </div>
 
@@ -132,10 +164,14 @@ export default function SOSDetails() {
             rootComments.map(comment => (
               <div key={comment.id} className="border-b border-gray-50 pb-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="h-8 w-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold text-sm">
-                    {comment.profiles?.email?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  <span className="font-medium text-sm">{comment.profiles?.email?.split('@')[0] || 'User'}</span>
+                  {comment.profiles?.avatar_url ? (
+                    <img src={comment.profiles.avatar_url} alt="User" className="w-8 h-8 rounded-full object-cover bg-gray-100" />
+                  ) : (
+                    <div className="h-8 w-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold text-sm">
+                      {(comment.profiles?.username || comment.profiles?.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="font-medium text-sm">{comment.profiles?.username || comment.profiles?.email?.split('@')[0] || 'User'}</span>
                   <span className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
                 </div>
                 <p className="text-gray-700 pl-10 mb-2 text-sm">{comment.content}</p>
@@ -153,10 +189,17 @@ export default function SOSDetails() {
                     {getReplies(comment.id).map(reply => (
                       <div key={reply.id}>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm text-gray-700">{reply.profiles?.email?.split('@')[0] || 'User'}</span>
+                          {reply.profiles?.avatar_url ? (
+                            <img src={reply.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100" />
+                          ) : (
+                            <div className="h-6 w-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-bold text-xs">
+                              {(reply.profiles?.username || reply.profiles?.email || 'U').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="font-medium text-sm text-gray-700">{reply.profiles?.username || reply.profiles?.email?.split('@')[0] || 'User'}</span>
                           <span className="text-xs text-gray-400">{new Date(reply.created_at).toLocaleDateString()}</span>
                         </div>
-                        <p className="text-gray-600 text-sm">{reply.content}</p>
+                        <p className="text-gray-600 text-sm pl-8">{reply.content}</p>
                       </div>
                     ))}
                   </div>
