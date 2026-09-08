@@ -21,6 +21,12 @@ export default function Navbar() {
               <Heart className="h-6 w-6" />
               <span className="font-bold text-xl">StraySOS</span>
             </Link>
+            
+            <div className="hidden sm:ml-8 sm:flex sm:space-x-8">
+              <Link to="/" className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                SOS Feed (النداءات)
+              </Link>
+            </div>
           </div>
           <div className="flex items-center space-x-4">
             {user ? (

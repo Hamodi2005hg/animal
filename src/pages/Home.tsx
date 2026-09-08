@@ -54,27 +54,41 @@ export default function Home() {
       navigator.geolocation.getCurrentPosition(async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          // Reverse geocoding using free Nominatim API
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=en`);
+          // Reverse geocoding using reliable client API
+          const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const data = await res.json();
           
-          if (data && data.address) {
-            const detectedCountry = data.address.country;
+          if (data && data.countryName) {
+            const detectedCountry = data.countryName;
             // Filter list by matching country
             const filtered = sosList.filter(sos => 
               sos.country?.toLowerCase() === detectedCountry?.toLowerCase()
             );
             setFilteredList(filtered);
+            if (filtered.length === 0) {
+              alert(`We found your location (${detectedCountry}) but there are no SOS calls here right now.`);
+            }
+          } else {
+             alert("Could not determine your country from the location.");
           }
         } catch (e) {
-           alert("Could not detect location automatically.");
+           alert("Could not detect location automatically. Please check your connection.");
         } finally {
            setIsNearMeLoading(false);
         }
-      }, () => {
-        alert("Please allow location access to use this feature.");
+      }, (error) => {
+        console.error(error);
+        if (error.code === 1) {
+          alert("Permission denied. Please allow location access in your browser to use this feature.");
+        } else if (error.code === 2) {
+          alert("Position unavailable. Please try again later.");
+        } else if (error.code === 3) {
+          alert("Request timed out. Please check your connection.");
+        } else {
+          alert("An error occurred while getting your location.");
+        }
         setIsNearMeLoading(false);
-      });
+      }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 });
     } else {
       alert("Geolocation is not supported by your browser.");
       setIsNearMeLoading(false);
