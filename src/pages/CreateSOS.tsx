@@ -1,19 +1,27 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { Upload, AlertCircle } from 'lucide-react';
+import { Country, State } from 'country-state-city';
 
 export default function CreateSOS() {
-  const [country, setCountry] = useState('');
-  const [region, setRegion] = useState('');
+  const [countryCode, setCountryCode] = useState('');
+  const [regionCode, setRegionCode] = useState('');
+  const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  const countries = useMemo(() => Country.getAllCountries(), []);
+  const states = useMemo(() => {
+    if (!countryCode) return [];
+    return State.getStatesOfCountry(countryCode);
+  }, [countryCode]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -36,11 +44,16 @@ export default function CreateSOS() {
         const fileName = `${Math.random()}.${fileExt}`;
         const filePath = `${user.id}/${fileName}`;
 
-        const { error: uploadError, data } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('animal-images')
           .upload(filePath, imageFile);
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('relation "buckets" does not exist')) {
+             throw new Error('Supabase configuration error: Please create a public storage bucket named "animal-images" in your Supabase dashboard.');
+          }
+          throw uploadError;
+        }
 
         const { data: publicUrlData } = supabase.storage
           .from('animal-images')
@@ -49,20 +62,29 @@ export default function CreateSOS() {
         image_url = publicUrlData.publicUrl;
       }
 
+      const selectedCountry = Country.getCountryByCode(countryCode)?.name || '';
+      const selectedState = State.getStateByCodeAndCountry(regionCode, countryCode)?.name || regionCode;
+
       const { error: insertError } = await supabase
         .from('animal_sos')
         .insert([
           {
             user_id: user.id,
-            country,
-            region,
+            country: selectedCountry,
+            region: selectedState,
+            area: area,
             description,
             image_url,
             status: 'open'
           }
         ]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (insertError.code === 'PGRST204' || insertError.message.includes('area')) {
+           throw new Error('Database schema error: Please add an "area" column (Type: text) to your "animal_sos" table in Supabase.');
+        }
+        throw insertError;
+      }
 
       navigate('/');
     } catch (err: any) {
@@ -72,13 +94,17 @@ export default function CreateSOS() {
     }
   };
 
+  if (authLoading) {
+    return <div className="text-center py-12"><p>Loading...</p></div>;
+  }
+
   if (!user) {
     return (
       <div className="text-center py-12">
         <h2 className="text-xl font-medium">Please sign in to report a stray animal.</h2>
         <button 
           onClick={() => navigate('/auth')}
-          className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md"
+          className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
         >
           Sign In
         </button>
@@ -87,69 +113,97 @@ export default function CreateSOS() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Report a Stray Animal (SOS)</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Provide details about the animal and its location to get help from the community.
+            Provide details about the animal and its exact location to get help from the community.
           </p>
         </div>
 
         {error && (
           <div className="mb-6 bg-red-50 p-4 rounded-md flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-red-700 font-medium whitespace-pre-wrap">{error}</p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
-              <label htmlFor="country" className="block text-sm font-medium text-gray-700">Country</label>
-              <input
-                type="text"
+              <label htmlFor="country" className="block text-sm font-medium text-gray-700">Country (الدولة)</label>
+              <select
                 id="country"
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-              />
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border bg-white"
+                value={countryCode}
+                onChange={(e) => {
+                  setCountryCode(e.target.value);
+                  setRegionCode('');
+                }}
+              >
+                <option value="">Select a country</option>
+                {countries.map((c) => (
+                  <option key={c.isoCode} value={c.isoCode}>{c.name}</option>
+                ))}
+              </select>
             </div>
             
             <div>
-              <label htmlFor="region" className="block text-sm font-medium text-gray-700">Region / City</label>
-              <input
-                type="text"
+              <label htmlFor="region" className="block text-sm font-medium text-gray-700">State / Region (الولاية/المنطقة)</label>
+              <select
                 id="region"
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-              />
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border bg-white disabled:bg-gray-100"
+                value={regionCode}
+                onChange={(e) => setRegionCode(e.target.value)}
+                disabled={!countryCode || states.length === 0}
+              >
+                <option value="">Select a state</option>
+                {states.map((s) => (
+                  <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+                ))}
+              </select>
+              {countryCode && states.length === 0 && (
+                <p className="mt-1 text-xs text-gray-500">No states available for this country, you can leave it blank.</p>
+              )}
             </div>
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description & Condition</label>
+            <label htmlFor="area" className="block text-sm font-medium text-gray-700">Exact Area / Neighborhood (المنطقة بالضبط / الحي)</label>
+            <input
+              type="text"
+              id="area"
+              required
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border"
+              placeholder="Enter the specific street, neighborhood, or landmark..."
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description & Condition (الوصف والحالة)</label>
             <textarea
               id="description"
               rows={4}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-              placeholder="Describe the animal, its condition, and exact location..."
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border"
+              placeholder="Describe the animal, its condition, and any other helpful details..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Upload Photo</label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+            <label className="block text-sm font-medium text-gray-700">Upload Photo (صورة الحيوان)</label>
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md bg-gray-50 hover:bg-gray-100 transition-colors">
               <div className="space-y-1 text-center">
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
                 <div className="flex text-sm text-gray-600 justify-center">
-                  <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                  <label htmlFor="file-upload" className="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
                     <span>Upload a file</span>
                     <input id="file-upload" name="file-upload" type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
                   </label>
@@ -162,7 +216,7 @@ export default function CreateSOS() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-4">
             <button
               type="button"
               onClick={() => navigate('/')}

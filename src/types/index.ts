@@ -10,6 +10,7 @@ export type AnimalSOS = {
   image_url: string;
   country: string;
   region: string;
+  area?: string;
   description: string;
   created_at: string;
   status: 'open' | 'resolved';

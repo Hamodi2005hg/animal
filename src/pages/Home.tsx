@@ -94,7 +94,7 @@ export default function Home() {
               <div className="p-5 flex-1 flex flex-col">
                 <div className="flex items-center gap-1 text-sm text-gray-500 mb-2">
                   <MapPin className="h-4 w-4" />
-                  <span>{sos.region}, {sos.country}</span>
+                  <span>{sos.area ? `${sos.area}, ` : ''}{sos.region}, {sos.country}</span>
                 </div>
                 
                 <p className="text-gray-900 mb-4 flex-1 line-clamp-3">
