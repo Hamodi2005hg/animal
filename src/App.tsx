@@ -10,6 +10,7 @@ import Home from './pages/Home';
 import Auth from './pages/Auth';
 import CreateSOS from './pages/CreateSOS';
 import Messages from './pages/Messages';
+import MyCalls from './pages/MyCalls';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/create-sos" element={<CreateSOS />} />
             <Route path="/messages" element={<Messages />} />
+            <Route path="/my-calls" element={<MyCalls />} />
           </Routes>
         </div>
       </BrowserRouter>

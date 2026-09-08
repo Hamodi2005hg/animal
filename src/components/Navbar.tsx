@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { supabase } from '../lib/supabase';
-import { Heart, PlusCircle, MessageCircle, LogOut } from 'lucide-react';
+import { Heart, PlusCircle, MessageCircle, LogOut, Archive } from 'lucide-react';
 
 export default function Navbar() {
   const { user } = useAuth();
@@ -39,9 +39,13 @@ export default function Navbar() {
                   <MessageCircle className="h-5 w-5" />
                   <span className="hidden sm:inline">Messages</span>
                 </Link>
+                <Link to="/my-calls" className="text-gray-600 hover:text-indigo-600 flex items-center gap-1">
+                  <Archive className="h-5 w-5" />
+                  <span className="hidden sm:inline">My Record</span>
+                </Link>
                 <button
                   onClick={handleSignOut}
-                  className="text-gray-600 hover:text-red-600 flex items-center gap-1"
+                  className="text-gray-600 hover:text-red-600 flex items-center gap-1 ml-2"
                 >
                   <LogOut className="h-5 w-5" />
                 </button>

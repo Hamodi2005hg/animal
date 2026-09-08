@@ -31,6 +31,7 @@ export default function Home() {
     const { data, error } = await supabase
       .from('animal_sos')
       .select('*, profiles(email)')
+      .eq('status', 'open') // Only show active calls in feed
       .order('created_at', { ascending: false });
 
     if (!error && data) {

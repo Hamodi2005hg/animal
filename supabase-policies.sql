@@ -17,17 +17,24 @@ ON animal_sos FOR INSERT
 TO authenticated 
 WITH CHECK (true);
 
+-- 4. Allow users to update their OWN posts (changing status to resolved)
+CREATE POLICY "Users can update their own posts" 
+ON animal_sos FOR UPDATE 
+TO authenticated 
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
 -- ==========================================
 -- Storage Bucket Policies (animal-images)
 -- ==========================================
 
--- 4. Allow everyone to view images in the bucket
+-- 5. Allow everyone to view images in the bucket
 CREATE POLICY "Public access to animal images" 
 ON storage.objects FOR SELECT 
 TO public 
 USING (bucket_id = 'animal-images');
 
--- 5. Allow logged-in users to upload images
+-- 6. Allow logged-in users to upload images
 CREATE POLICY "Authenticated users can upload images" 
 ON storage.objects FOR INSERT 
 TO authenticated 
