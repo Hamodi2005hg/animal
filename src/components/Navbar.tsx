@@ -1,14 +1,15 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
-import { supabase } from '../lib/supabase';
+import { removeToken } from '../lib/api';
 import { Heart, PlusCircle, MessageCircle, LogOut } from 'lucide-react';
 
 export default function Navbar() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const navigate = useNavigate();
 
-  const handleSignOut = async () => {
-    await supabase?.auth.signOut();
+  const handleSignOut = () => {
+    removeToken();
+    setUser(null);
     navigate('/auth');
   };
 

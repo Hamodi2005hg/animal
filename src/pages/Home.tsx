@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { AnimalSOS } from '../types';
 import { useAuth } from '../components/AuthProvider';
-import { MapPin, Clock, MessageCircle, AlertCircle } from 'lucide-react';
+import { fetchApi } from '../lib/api';
+import { MapPin, Clock, MessageCircle, AlertCircle, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Home() {
@@ -16,20 +16,16 @@ export default function Home() {
   }, []);
 
   const fetchSOS = async () => {
-    if (!supabase) {
+    try {
+      const data = await fetchApi('/sos');
+      if (Array.isArray(data)) {
+        setSosList(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
       setLoading(false);
-      return;
     }
-    
-    const { data, error } = await supabase
-      .from('animal_sos')
-      .select('*, profiles(email)')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setSosList(data as AnimalSOS[]);
-    }
-    setLoading(false);
   };
 
   const handleRespond = (sos: AnimalSOS) => {
@@ -44,16 +40,6 @@ export default function Home() {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  if (!supabase) {
-    return (
-      <div className="text-center py-12">
-        <AlertCircle className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900">Database Not Configured</h3>
-        <p className="mt-1 text-gray-500">Please connect Supabase to view and report SOS calls.</p>
       </div>
     );
   }
@@ -125,6 +111,3 @@ export default function Home() {
     </div>
   );
 }
-
-// Ensure Heart is imported if we use it in the empty state
-import { Heart } from 'lucide-react';
