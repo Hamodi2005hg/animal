@@ -246,26 +246,14 @@ export default function Home() {
             const displayImage = images.length > 0 ? images[0] : null;
 
             return (
-              <div key={sos.id} className="bg-white rounded-md shadow-sm border border-gray-300 flex hover:border-gray-400 transition-colors">
+              <div key={sos.id} className="bg-white rounded-md shadow-sm border border-gray-300 flex flex-col hover:border-gray-400 transition-colors">
                 
-                {/* Reddit style voting sidebar */}
-                <div className="w-10 bg-gray-50 flex flex-col items-center py-2 rounded-l-md border-r border-gray-100">
-                  <button onClick={() => handleVote(sos.id, 1)} className="p-1 text-gray-400 hover:text-orange-500 hover:bg-gray-200 rounded">
-                    <ArrowUp className="h-5 w-5" />
-                  </button>
-                  <span className="font-bold text-gray-900 text-xs my-1">
-                    {sos.vote_score || 0}
-                  </span>
-                  <button onClick={() => handleVote(sos.id, -1)} className="p-1 text-gray-400 hover:text-indigo-500 hover:bg-gray-200 rounded">
-                    <ArrowDown className="h-5 w-5" />
-                  </button>
-                </div>
-                
-                {/* Right Content */}
-                <div className="p-3 pt-3 flex-1 flex flex-col">
+                <div className="p-4 flex flex-col">
                   {/* Header */}
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-2 flex-wrap">
-                     <span className="font-bold text-gray-900">{sos.animal_type ? `r/${sos.animal_type.toLowerCase()}` : 'r/animal'}</span>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3 flex-wrap">
+                     {sos.animal_type && (
+                       <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">{sos.animal_type}</span>
+                     )}
                      <span>•</span>
                      <span>Posted by u/{sos.profiles?.email?.split('@')[0] || 'user'}</span>
                      <span>•</span>
@@ -304,10 +292,24 @@ export default function Home() {
                   )}
 
                   {/* Footer Actions */}
-                  <div className="flex items-center gap-2 mt-1 text-gray-500 font-bold text-xs">
+                  <div className="flex items-center gap-2 mt-3 text-gray-500 font-bold text-xs">
+                    
+                    {/* Horizontal Voting Pill */}
+                    <div className="flex items-center bg-gray-100 rounded-full">
+                      <button onClick={() => handleVote(sos.id, 1)} className="p-1.5 text-gray-500 hover:text-orange-500 hover:bg-gray-200 rounded-l-full transition-colors">
+                        <ArrowUp className="h-4 w-4" />
+                      </button>
+                      <span className="font-bold text-gray-900 text-xs px-2">
+                        {sos.vote_score || 0}
+                      </span>
+                      <button onClick={() => handleVote(sos.id, -1)} className="p-1.5 text-gray-500 hover:text-indigo-500 hover:bg-gray-200 rounded-r-full transition-colors">
+                        <ArrowDown className="h-4 w-4" />
+                      </button>
+                    </div>
+
                     <button 
                       onClick={() => navigate(`/sos/${sos.id}`)}
-                      className="flex items-center gap-1.5 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors"
+                      className="flex items-center gap-1.5 hover:bg-gray-100 px-3 py-1.5 rounded-full transition-colors"
                     >
                       <MessageCircle className="h-4 w-4" />
                       Comments
