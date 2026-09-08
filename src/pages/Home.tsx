@@ -48,50 +48,70 @@ export default function Home() {
     navigate(`/messages?user=${sos.user_id}&sos=${sos.id}`);
   };
 
-  const handleNearMe = () => {
+  const handleNearMe = async () => {
     setIsNearMeLoading(true);
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          // Reverse geocoding using reliable client API
-          const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
-          const data = await res.json();
-          
-          if (data && data.countryName) {
-            const detectedCountry = data.countryName;
-            // Filter list by matching country
-            const filtered = sosList.filter(sos => 
-              sos.country?.toLowerCase() === detectedCountry?.toLowerCase()
-            );
-            setFilteredList(filtered);
-            if (filtered.length === 0) {
-              alert(`We found your location (${detectedCountry}) but there are no SOS calls here right now.`);
-            }
-          } else {
-             alert("Could not determine your country from the location.");
-          }
-        } catch (e) {
-           alert("Could not detect location automatically. Please check your connection.");
-        } finally {
-           setIsNearMeLoading(false);
-        }
-      }, (error) => {
-        console.error(error);
-        if (error.code === 1) {
-          alert("Permission denied. Please allow location access in your browser to use this feature.");
-        } else if (error.code === 2) {
-          alert("Position unavailable. Please try again later.");
-        } else if (error.code === 3) {
-          alert("Request timed out. Please check your connection.");
-        } else {
-          alert("An error occurred while getting your location.");
-        }
-        setIsNearMeLoading(false);
-      }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 });
-    } else {
-      alert("Geolocation is not supported by your browser.");
+
+    const applyCountryFilter = (detectedCountry: string) => {
+      const filtered = sosList.filter(sos => 
+        sos.country?.toLowerCase() === detectedCountry?.toLowerCase()
+      );
+      setFilteredList(filtered);
+      if (filtered.length === 0) {
+        alert(`We found your location (${detectedCountry}) but there are no SOS calls here right now.`);
+      }
       setIsNearMeLoading(false);
+    };
+
+    const ipFallback = async () => {
+      try {
+        // Fallback to IP-based location if GPS fails or times out
+        const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en`);
+        const data = await res.json();
+        
+        if (data && data.countryName) {
+          applyCountryFilter(data.countryName);
+        } else {
+          alert("Could not determine your country from the location.");
+          setIsNearMeLoading(false);
+        }
+      } catch (e) {
+        alert("Could not detect location automatically. Please check your connection.");
+        setIsNearMeLoading(false);
+      }
+    };
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
+            const data = await res.json();
+            
+            if (data && data.countryName) {
+              applyCountryFilter(data.countryName);
+            } else {
+              ipFallback();
+            }
+          } catch (e) {
+            ipFallback();
+          }
+        }, 
+        (error) => {
+          console.warn("Geolocation API failed, falling back to IP based location.", error);
+          if (error.code === 1) {
+             // User explicitly denied permission, still we can try IP fallback as it doesn't require explicit GPS permission
+             ipFallback();
+          } else {
+             // Timeout or position unavailable
+             ipFallback();
+          }
+        }, 
+        // Increased timeout to 15s and maximumAge to 5 minutes to ensure fast response if recently cached
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+      );
+    } else {
+      ipFallback();
     }
   };
 
