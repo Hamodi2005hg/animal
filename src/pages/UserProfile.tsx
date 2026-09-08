@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { AnimalSOS, Profile } from '../types';
 import { useAuth } from '../components/AuthProvider';
-import { MapPin, MessageCircle, AlertCircle, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, MessageCircle, AlertCircle, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, ArrowLeft, Facebook, Instagram, Twitter, Globe } from 'lucide-react';
 
 export default function UserProfile() {
   const { id } = useParams<{ id: string }>();
@@ -42,15 +42,17 @@ export default function UserProfile() {
     // Fetch Posts with votes
     const { data: postsData, error } = await supabase
       .from('animal_sos')
-      .select('*, profiles(email, username, avatar_url), sos_votes(vote_value)')
+      .select('*, profiles(email, username, avatar_url), sos_votes(user_id, vote_value)')
       .eq('user_id', id)
       .order('created_at', { ascending: false });
 
     if (!error && postsData) {
       const processedData = postsData.map((sos: any) => {
         const votes = sos.sos_votes || [];
-        const score = votes.reduce((acc: number, v: any) => acc + v.vote_value, 0);
-        return { ...sos, vote_score: score };
+        const upvotes = votes.filter((v: any) => v.vote_value === 1).length;
+        const downvotes = votes.filter((v: any) => v.vote_value === -1).length;
+        const userVote = user ? votes.find((v: any) => v.user_id === user.id)?.vote_value : 0;
+        return { ...sos, upvotes, downvotes, user_vote: userVote };
       });
       setUserPosts(processedData as AnimalSOS[]);
     } else if (error && error.code === 'PGRST200') {
@@ -62,7 +64,7 @@ export default function UserProfile() {
         .order('created_at', { ascending: false });
       
       if (fallbackData) {
-        const processedData = fallbackData.map((sos: any) => ({ ...sos, vote_score: 0 }));
+        const processedData = fallbackData.map((sos: any) => ({ ...sos, upvotes: 0, downvotes: 0, user_vote: 0 }));
         setUserPosts(processedData as AnimalSOS[]);
       }
     }
@@ -76,28 +78,62 @@ export default function UserProfile() {
       return;
     }
     if (!supabase) return;
+
+    const sos = userPosts.find(s => s.id === sosId);
+    if (!sos) return;
+
+    const previousVote = sos.user_vote || 0;
+    const isRemoving = previousVote === value;
     
-    setUserPosts(prev => prev.map(sos => {
-      if (sos.id === sosId) {
-        return { ...sos, vote_score: (sos.vote_score || 0) + value };
+    // Store old state for rollback
+    const oldUpvotes = sos.upvotes || 0;
+    const oldDownvotes = sos.downvotes || 0;
+    const oldUserVote = previousVote;
+
+    // Optimistic UI update
+    setUserPosts(prev => prev.map(s => {
+      if (s.id === sosId) {
+        let newUpvotes = oldUpvotes;
+        let newDownvotes = oldDownvotes;
+        
+        if (isRemoving) {
+          if (value === 1) newUpvotes = Math.max(0, newUpvotes - 1);
+          if (value === -1) newDownvotes = Math.max(0, newDownvotes - 1);
+          return { ...s, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: 0 };
+        } else {
+          if (previousVote === 1) newUpvotes = Math.max(0, newUpvotes - 1);
+          if (previousVote === -1) newDownvotes = Math.max(0, newDownvotes - 1);
+          if (value === 1) newUpvotes += 1;
+          if (value === -1) newDownvotes += 1;
+          return { ...s, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: value };
+        }
       }
-      return sos;
+      return s;
     }));
     
     try {
-      const { error } = await supabase
-        .from('sos_votes')
-        .upsert({ 
-          sos_id: sosId, 
-          user_id: user.id, 
-          vote_value: value 
-        }, { onConflict: 'sos_id, user_id' });
-        
-      if (error) {
-        setUserPosts(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
+      if (isRemoving) {
+        const { error } = await supabase
+          .from('sos_votes')
+          .delete()
+          .eq('sos_id', sosId)
+          .eq('user_id', user.id);
+          
+        if (error) throw error;
       } else {
-        const sos = userPosts.find(s => s.id === sosId);
-        if (sos && sos.user_id !== user.id) {
+        const { error } = await supabase
+          .from('sos_votes')
+          .upsert({ 
+            sos_id: sosId, 
+            user_id: user.id, 
+            vote_value: value 
+          }, { onConflict: 'sos_id, user_id' });
+          
+        if (error) {
+          throw error;
+        }
+
+        if (sos.user_id !== user.id) {
           await supabase.from('notifications').insert({
             user_id: sos.user_id,
             actor_id: user.id,
@@ -107,7 +143,8 @@ export default function UserProfile() {
         }
       }
     } catch(err) {
-      setUserPosts(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
+      console.error(err);
+      setUserPosts(prev => prev.map(s => s.id === sosId ? { ...s, upvotes: oldUpvotes, downvotes: oldDownvotes, user_vote: oldUserVote } : s));
     }
   };
 
@@ -144,8 +181,18 @@ export default function UserProfile() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="mb-6">
+        <button 
+          onClick={() => navigate('/')} 
+          className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/30 px-3 py-1.5 rounded-full transition-colors w-fit"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Feed
+        </button>
+      </div>
+
       {/* Profile Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 mb-8 flex flex-col sm:flex-row items-center gap-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 mb-8 flex flex-col sm:flex-row items-center sm:items-start gap-6">
         <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border-4 border-white dark:border-gray-800 shadow-sm flex items-center justify-center flex-shrink-0">
           {profile.avatar_url ? (
             <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
@@ -153,11 +200,38 @@ export default function UserProfile() {
             <span className="text-gray-400 font-bold text-4xl">{(profile.username || profile.email || 'U').charAt(0).toUpperCase()}</span>
           )}
         </div>
-        <div className="text-center sm:text-left">
+        <div className="text-center sm:text-left flex-1">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
             {profile.username || profile.email?.split('@')[0]}
           </h1>
           <p className="text-gray-500 dark:text-gray-400">Joined {new Date(profile.created_at).toLocaleDateString()}</p>
+          
+          {profile?.bio && (
+            <p className="mt-4 text-gray-700 dark:text-gray-300 text-sm bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+              {profile.bio}
+            </p>
+          )}
+
+          {/* Social Links */}
+          {(profile?.facebook_url || profile?.instagram_url || profile?.twitter_url) && (
+            <div className="flex items-center justify-center sm:justify-start gap-4 mt-5">
+              {profile.facebook_url && (
+                <a href={profile.facebook_url} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors">
+                  <Facebook className="w-5 h-5" />
+                </a>
+              )}
+              {profile.instagram_url && (
+                <a href={profile.instagram_url} target="_blank" rel="noopener noreferrer" className="p-2 bg-pink-50 text-pink-600 rounded-full hover:bg-pink-100 dark:bg-pink-900/30 dark:text-pink-400 dark:hover:bg-pink-900/50 transition-colors">
+                  <Instagram className="w-5 h-5" />
+                </a>
+              )}
+              {profile.twitter_url && (
+                <a href={profile.twitter_url} target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors">
+                  <Twitter className="w-5 h-5" />
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -230,19 +304,32 @@ export default function UserProfile() {
 
                   {/* Footer Actions */}
                   <div className="flex items-center gap-2 mt-3 text-gray-500 dark:text-gray-400 font-bold text-xs">
-                    {/* Horizontal Voting Pill */}
-                    <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-full">
-                      <button onClick={() => handleVote(sos.id, 1)} className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-l-full transition-colors">
-                        <ArrowUp className="h-4 w-4" />
-                      </button>
-                      <span className="font-bold text-gray-900 dark:text-gray-100 text-xs px-2">
-                        {sos.vote_score || 0}
-                      </span>
-                      <button onClick={() => handleVote(sos.id, -1)} className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-r-full transition-colors">
-                        <ArrowDown className="h-4 w-4" />
-                      </button>
+                    {/* Horizontal Voting Pills */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-full px-1">
+                        <button 
+                          onClick={() => handleVote(sos.id, 1)} 
+                          className={`p-1.5 rounded-full transition-colors ${sos.user_vote === 1 ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400'}`}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </button>
+                        <span className="font-bold text-gray-900 dark:text-gray-100 text-xs px-1 pr-2">
+                          {sos.upvotes || 0}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-full px-1">
+                        <button 
+                          onClick={() => handleVote(sos.id, -1)} 
+                          className={`p-1.5 rounded-full transition-colors ${sos.user_vote === -1 ? 'text-indigo-500' : 'text-gray-500 dark:text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`}
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </button>
+                        <span className="font-bold text-gray-900 dark:text-gray-100 text-xs px-1 pr-2">
+                          {sos.downvotes || 0}
+                        </span>
+                      </div>
                     </div>
-
                     <button 
                       onClick={() => navigate(`/sos/${sos.id}`)}
                       className="flex items-center gap-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-1.5 rounded-full transition-colors"

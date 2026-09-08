@@ -9,6 +9,11 @@ export default function Settings() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [bio, setBio] = useState('');
+  const [facebook, setFacebook] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [twitter, setTwitter] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -28,13 +33,17 @@ export default function Settings() {
     setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
-      .select('username, avatar_url')
+      .select('username, avatar_url, bio, facebook_url, instagram_url, twitter_url')
       .eq('id', user.id)
       .single();
 
     if (!error && data) {
       setUsername(data.username || '');
       setAvatarUrl(data.avatar_url || '');
+      setBio(data.bio || '');
+      setFacebook(data.facebook_url || '');
+      setInstagram(data.instagram_url || '');
+      setTwitter(data.twitter_url || '');
     }
     setLoading(false);
   };
@@ -85,7 +94,11 @@ export default function Settings() {
         .from('profiles')
         .update({
           username,
-          avatar_url: avatarUrl
+          avatar_url: avatarUrl,
+          bio,
+          facebook_url: facebook,
+          instagram_url: instagram,
+          twitter_url: twitter
         })
         .eq('id', user.id);
 
@@ -165,6 +178,59 @@ export default function Settings() {
               className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border"
               placeholder="Enter your username"
             />
+          </div>
+
+          <div>
+            <label htmlFor="bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bio / About Me</label>
+            <textarea
+              id="bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={3}
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border"
+              placeholder="Tell us a little about yourself"
+            />
+          </div>
+
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Social Links</h3>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="facebook" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Facebook URL</label>
+                <input
+                  type="url"
+                  id="facebook"
+                  value={facebook}
+                  onChange={(e) => setFacebook(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border"
+                  placeholder="https://facebook.com/yourprofile"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="instagram" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Instagram URL</label>
+                <input
+                  type="url"
+                  id="instagram"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border"
+                  placeholder="https://instagram.com/yourprofile"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="twitter" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Twitter URL</label>
+                <input
+                  type="url"
+                  id="twitter"
+                  value={twitter}
+                  onChange={(e) => setTwitter(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border"
+                  placeholder="https://twitter.com/yourprofile"
+                />
+              </div>
+            </div>
           </div>
 
           <div>

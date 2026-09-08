@@ -3,6 +3,10 @@ export type Profile = {
   email: string;
   username?: string;
   avatar_url?: string;
+  bio?: string;
+  facebook_url?: string;
+  instagram_url?: string;
+  twitter_url?: string;
   created_at: string;
 };
 
@@ -18,6 +22,9 @@ export type AnimalSOS = {
   created_at: string;
   status: 'open' | 'resolved';
   vote_score?: number;
+  upvotes?: number;
+  downvotes?: number;
+  user_vote?: number;
   profiles?: Profile;
   sos_votes?: SOSVote[];
   sos_comments?: SOSComment[];

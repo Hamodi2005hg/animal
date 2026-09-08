@@ -53,7 +53,7 @@ export default function Home() {
     // Fetch SOS with votes
     const { data, error } = await supabase
       .from('animal_sos')
-      .select('*, profiles(email, username, avatar_url), sos_votes(vote_value)')
+      .select('*, profiles(email, username, avatar_url), sos_votes(user_id, vote_value)')
       .eq('status', 'open') // Only show active calls in feed
       .order('created_at', { ascending: false });
 
@@ -61,8 +61,10 @@ export default function Home() {
       // Calculate vote score for each SOS
       const processedData = data.map((sos: any) => {
         const votes = sos.sos_votes || [];
-        const score = votes.reduce((acc: number, v: any) => acc + v.vote_value, 0);
-        return { ...sos, vote_score: score };
+        const upvotes = votes.filter((v: any) => v.vote_value === 1).length;
+        const downvotes = votes.filter((v: any) => v.vote_value === -1).length;
+        const userVote = user ? votes.find((v: any) => v.user_id === user.id)?.vote_value : 0;
+        return { ...sos, upvotes, downvotes, user_vote: userVote };
       });
       setSosList(processedData as AnimalSOS[]);
     } else if (error && error.code === 'PGRST200') {
@@ -74,7 +76,7 @@ export default function Home() {
         .order('created_at', { ascending: false });
       
       if (fallbackData) {
-        const processedData = fallbackData.map((sos: any) => ({ ...sos, vote_score: 0 }));
+        const processedData = fallbackData.map((sos: any) => ({ ...sos, upvotes: 0, downvotes: 0, user_vote: 0 }));
         setSosList(processedData as AnimalSOS[]);
       }
     }
@@ -145,50 +147,80 @@ export default function Home() {
       return;
     }
     if (!supabase) return;
+
+    const sos = sosList.find(s => s.id === sosId);
+    if (!sos) return;
+
+    const previousVote = sos.user_vote || 0;
+    const isRemoving = previousVote === value;
     
+    // Store old state for rollback
+    const oldUpvotes = sos.upvotes || 0;
+    const oldDownvotes = sos.downvotes || 0;
+    const oldUserVote = previousVote;
+
     // Optimistic UI update
-    setSosList(prev => prev.map(sos => {
-      if (sos.id === sosId) {
-        return { ...sos, vote_score: (sos.vote_score || 0) + value };
+    setSosList(prev => prev.map(s => {
+      if (s.id === sosId) {
+        let newUpvotes = oldUpvotes;
+        let newDownvotes = oldDownvotes;
+        
+        if (isRemoving) {
+          if (value === 1) newUpvotes = Math.max(0, newUpvotes - 1);
+          if (value === -1) newDownvotes = Math.max(0, newDownvotes - 1);
+          return { ...s, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: 0 };
+        } else {
+          if (previousVote === 1) newUpvotes = Math.max(0, newUpvotes - 1);
+          if (previousVote === -1) newDownvotes = Math.max(0, newDownvotes - 1);
+          if (value === 1) newUpvotes += 1;
+          if (value === -1) newDownvotes += 1;
+          return { ...s, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: value };
+        }
       }
-      return sos;
+      return s;
     }));
     
     try {
-      const { error } = await supabase
-        .from('sos_votes')
-        .upsert({ 
-          sos_id: sosId, 
-          user_id: user.id, 
-          vote_value: value 
-        }, { onConflict: 'sos_id, user_id' });
-        
-      if (error) {
-        if (error.code === '42P01') {
-          console.error('Voting system is not initialized yet. Please run the provided SQL script in Supabase.');
-          // Revert optimistic update on missing table
-          setSosList(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
-        } else {
-          console.error(error);
-          // Revert on other errors
-          setSosList(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
-        }
+      if (isRemoving) {
+        const { error } = await supabase
+          .from('sos_votes')
+          .delete()
+          .eq('sos_id', sosId)
+          .eq('user_id', user.id);
+          
+        if (error) throw error;
       } else {
+        const { error } = await supabase
+          .from('sos_votes')
+          .upsert({ 
+            sos_id: sosId, 
+            user_id: user.id, 
+            vote_value: value 
+          }, { onConflict: 'sos_id, user_id' });
+          
+        if (error) {
+          if (error.code === '42P01') {
+            console.error('Voting system is not initialized yet.');
+          } else {
+            console.error(error);
+          }
+          throw error;
+        }
+
         // Notification logic
-        const sos = sosList.find(s => s.id === sosId);
-        if (sos && sos.user_id !== user.id) {
+        if (sos.user_id !== user.id) {
           await supabase.from('notifications').insert({
             user_id: sos.user_id,
             actor_id: user.id,
             type: 'vote',
             post_id: sos.id
-          }).catch(() => {}); // ignore error if table missing
+          }).catch(() => {});
         }
       }
     } catch(err) {
       console.error(err);
       // Revert optimistic update
-      setSosList(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
+      setSosList(prev => prev.map(s => s.id === sosId ? { ...s, upvotes: oldUpvotes, downvotes: oldDownvotes, user_vote: oldUserVote } : s));
     }
   };
 
@@ -257,16 +289,16 @@ export default function Home() {
             const displayImage = images.length > 0 ? images[0] : null;
 
             return (
-              <div key={sos.id} className="bg-white rounded-md shadow-sm border border-gray-300 flex flex-col hover:border-gray-400 transition-colors">
+              <div key={sos.id} className="bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-300 dark:border-gray-700 flex flex-col hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
                 
                 <div className="p-4 flex flex-col">
                   {/* Header */}
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3 flex-wrap">
                      <Link to={`/user/${sos.user_id}`} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" onClick={(e) => e.stopPropagation()}>
                        {sos.profiles?.avatar_url ? (
-                         <img src={sos.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100" />
+                         <img src={sos.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100 dark:bg-gray-700" />
                        ) : (
-                         <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-[10px]">
+                         <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-bold flex items-center justify-center text-[10px]">
                            {(sos.profiles?.username || sos.profiles?.email || 'U').charAt(0).toUpperCase()}
                          </div>
                        )}
@@ -274,7 +306,7 @@ export default function Home() {
                      </Link>
                      <span className="dark:text-gray-500">•</span>
                      {sos.animal_type && (
-                       <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">{sos.animal_type}</span>
+                       <span className="font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">{sos.animal_type}</span>
                      )}
                      <span>•</span>
                      <span>{new Date(sos.created_at).toLocaleDateString()}</span>
@@ -284,14 +316,14 @@ export default function Home() {
                   </div>
                   
                   {/* Content */}
-                  <p className="text-gray-900 text-sm mb-3">
+                  <p className="text-gray-900 dark:text-gray-100 text-sm mb-3">
                     {sos.description}
                   </p>
 
                   {/* Media */}
                   {displayImage ? (
                     <div 
-                      className="relative w-full max-h-[500px] bg-gray-100 rounded-md overflow-hidden cursor-pointer mb-2 flex items-center justify-center"
+                      className="relative w-full max-h-[500px] bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden cursor-pointer mb-2 flex items-center justify-center"
                       onClick={() => openImageModal(sos.image_url)}
                     >
                       <img 
@@ -306,30 +338,44 @@ export default function Home() {
                       )}
                     </div>
                   ) : (
-                    <div className="w-full h-32 bg-gray-100 rounded-md mb-2 flex items-center justify-center border border-gray-200">
-                      <AlertCircle className="h-8 w-8 text-gray-300" />
+                    <div className="w-full h-32 bg-gray-100 dark:bg-gray-700 rounded-md mb-2 flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                      <AlertCircle className="h-8 w-8 text-gray-300 dark:text-gray-500" />
                     </div>
                   )}
 
                   {/* Footer Actions */}
-                  <div className="flex items-center gap-2 mt-3 text-gray-500 font-bold text-xs">
+                  <div className="flex items-center gap-2 mt-3 text-gray-500 dark:text-gray-400 font-bold text-xs">
                     
-                    {/* Horizontal Voting Pill */}
-                    <div className="flex items-center bg-gray-100 rounded-full">
-                      <button onClick={() => handleVote(sos.id, 1)} className="p-1.5 text-gray-500 hover:text-orange-500 hover:bg-gray-200 rounded-l-full transition-colors">
-                        <ArrowUp className="h-4 w-4" />
-                      </button>
-                      <span className="font-bold text-gray-900 text-xs px-2">
-                        {sos.vote_score || 0}
-                      </span>
-                      <button onClick={() => handleVote(sos.id, -1)} className="p-1.5 text-gray-500 hover:text-indigo-500 hover:bg-gray-200 rounded-r-full transition-colors">
-                        <ArrowDown className="h-4 w-4" />
-                      </button>
+                    {/* Horizontal Voting Pills */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-full px-1">
+                        <button 
+                          onClick={() => handleVote(sos.id, 1)} 
+                          className={`p-1.5 rounded-full transition-colors ${sos.user_vote === 1 ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400 hover:text-orange-500'}`}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </button>
+                        <span className="font-bold text-gray-900 dark:text-gray-100 text-xs px-1 pr-2">
+                          {sos.upvotes || 0}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-full px-1">
+                        <button 
+                          onClick={() => handleVote(sos.id, -1)} 
+                          className={`p-1.5 rounded-full transition-colors ${sos.user_vote === -1 ? 'text-indigo-500' : 'text-gray-500 dark:text-gray-400 hover:text-indigo-500'}`}
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </button>
+                        <span className="font-bold text-gray-900 dark:text-gray-100 text-xs px-1 pr-2">
+                          {sos.downvotes || 0}
+                        </span>
+                      </div>
                     </div>
 
                     <button 
                       onClick={() => navigate(`/sos/${sos.id}`)}
-                      className="flex items-center gap-1.5 hover:bg-gray-100 px-3 py-1.5 rounded-full transition-colors"
+                      className="flex items-center gap-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-1.5 rounded-full transition-colors"
                     >
                       <MessageCircle className="h-4 w-4" />
                       Comments
@@ -338,7 +384,7 @@ export default function Home() {
                     {user?.id !== sos.user_id && (
                       <button
                         onClick={() => handleRespond(sos)}
-                        className="flex items-center gap-1.5 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors text-indigo-600"
+                        className="flex items-center gap-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1.5 rounded transition-colors text-indigo-600 dark:text-indigo-400 ml-auto"
                       >
                         <MessageCircle className="h-4 w-4" />
                         Direct Message
