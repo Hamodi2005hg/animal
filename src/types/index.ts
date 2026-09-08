@@ -7,6 +7,7 @@ export type Profile = {
 export type AnimalSOS = {
   id: string;
   user_id: string;
+  animal_type?: string;
   image_url: string;
   country: string;
   region: string;
@@ -14,7 +15,28 @@ export type AnimalSOS = {
   description: string;
   created_at: string;
   status: 'open' | 'resolved';
+  vote_score?: number;
   profiles?: Profile;
+  sos_votes?: SOSVote[];
+  sos_comments?: SOSComment[];
+};
+
+export type SOSVote = {
+  id: string;
+  sos_id: string;
+  user_id: string;
+  vote_value: number;
+};
+
+export type SOSComment = {
+  id: string;
+  sos_id: string;
+  user_id: string;
+  parent_id: string | null;
+  content: string;
+  created_at: string;
+  profiles?: Profile;
+  replies?: SOSComment[]; // For nested UI
 };
 
 export type Message = {

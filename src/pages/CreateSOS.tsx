@@ -10,6 +10,7 @@ export default function CreateSOS() {
   const [countryCode, setCountryCode] = useState('');
   const [regionCode, setRegionCode] = useState('');
   const [area, setArea] = useState('');
+  const [animalType, setAnimalType] = useState('Dog');
   const [description, setDescription] = useState('');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,6 +101,7 @@ export default function CreateSOS() {
         .insert([
           {
             user_id: user.id,
+            animal_type: animalType,
             country: selectedCountry,
             region: selectedState,
             area: area,
@@ -157,6 +159,23 @@ export default function CreateSOS() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          
+          <div>
+            <label htmlFor="animalType" className="block text-sm font-medium text-gray-700">Animal Type (نوع الحيوان)</label>
+            <select
+              id="animalType"
+              required
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border bg-white"
+              value={animalType}
+              onChange={(e) => setAnimalType(e.target.value)}
+            >
+              <option value="Dog">Dog (كلب)</option>
+              <option value="Cat">Cat (قطة)</option>
+              <option value="Bird">Bird (طائر)</option>
+              <option value="Other">Other (آخر)</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
               <label htmlFor="country" className="block text-sm font-medium text-gray-700">Country (الدولة)</label>

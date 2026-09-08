@@ -25,6 +25,45 @@ USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
 -- ==========================================
+-- Animal Type Update
+-- ==========================================
+-- Add animal_type column if it doesn't exist yet
+ALTER TABLE animal_sos ADD COLUMN IF NOT EXISTS animal_type text;
+
+-- ==========================================
+-- Voting System Tables & Policies
+-- ==========================================
+CREATE TABLE IF NOT EXISTS sos_votes (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  sos_id uuid REFERENCES animal_sos(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  vote_value integer NOT NULL,
+  UNIQUE(sos_id, user_id)
+);
+
+ALTER TABLE sos_votes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read access for all votes" ON sos_votes FOR SELECT TO public USING (true);
+CREATE POLICY "Users can insert their own vote" ON sos_votes FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own vote" ON sos_votes FOR UPDATE TO authenticated USING (auth.uid() = user_id);
+
+-- ==========================================
+-- Commenting System Tables & Policies
+-- ==========================================
+CREATE TABLE IF NOT EXISTS sos_comments (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  sos_id uuid REFERENCES animal_sos(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  parent_id uuid REFERENCES sos_comments(id) ON DELETE CASCADE,
+  content text NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE sos_comments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read access for all comments" ON sos_comments FOR SELECT TO public USING (true);
+CREATE POLICY "Users can insert comments" ON sos_comments FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+
+
+-- ==========================================
 -- Storage Bucket Policies (animal-images)
 -- ==========================================
 

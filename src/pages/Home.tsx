@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { AnimalSOS } from '../types';
 import { useAuth } from '../components/AuthProvider';
-import { MapPin, Clock, MessageCircle, AlertCircle, Navigation, Heart, ChevronRight, ChevronLeft, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { MapPin, Clock, MessageCircle, AlertCircle, Navigation, Heart, ChevronRight, ChevronLeft, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Home() {
   const [sosList, setSosList] = useState<AnimalSOS[]>([]);
   const [filteredList, setFilteredList] = useState<AnimalSOS[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNearMeLoading, setIsNearMeLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const animalTypeFilter = searchParams.get('type');
   
   // Modal states
   const [selectedImages, setSelectedImages] = useState<string[] | null>(null);
@@ -22,21 +24,59 @@ export default function Home() {
     fetchSOS();
   }, []);
 
+  useEffect(() => {
+    applyFilters(sosList);
+  }, [animalTypeFilter, sosList]);
+
+  const applyFilters = (list: AnimalSOS[], detectedCountry?: string) => {
+    let result = list;
+    
+    if (animalTypeFilter) {
+      result = result.filter(sos => sos.animal_type === animalTypeFilter);
+    }
+    
+    if (detectedCountry) {
+      result = result.filter(sos => 
+        sos.country?.toLowerCase() === detectedCountry.toLowerCase()
+      );
+    }
+
+    setFilteredList(result);
+  };
+
   const fetchSOS = async () => {
     if (!supabase) {
       setLoading(false);
       return;
     }
     
+    // Fetch SOS with votes
     const { data, error } = await supabase
       .from('animal_sos')
-      .select('*, profiles(email)')
+      .select('*, profiles(email), sos_votes(vote_value)')
       .eq('status', 'open') // Only show active calls in feed
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      setSosList(data as AnimalSOS[]);
-      setFilteredList(data as AnimalSOS[]);
+      // Calculate vote score for each SOS
+      const processedData = data.map((sos: any) => {
+        const votes = sos.sos_votes || [];
+        const score = votes.reduce((acc: number, v: any) => acc + v.vote_value, 0);
+        return { ...sos, vote_score: score };
+      });
+      setSosList(processedData as AnimalSOS[]);
+    } else if (error && error.code === 'PGRST200') {
+      // Fallback if sos_votes relation doesn't exist yet
+      const { data: fallbackData } = await supabase
+        .from('animal_sos')
+        .select('*, profiles(email)')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+      
+      if (fallbackData) {
+        const processedData = fallbackData.map((sos: any) => ({ ...sos, vote_score: 0 }));
+        setSosList(processedData as AnimalSOS[]);
+      }
     }
     setLoading(false);
   };
@@ -53,19 +93,20 @@ export default function Home() {
     setIsNearMeLoading(true);
 
     const applyCountryFilter = (detectedCountry: string) => {
+      applyFilters(sosList, detectedCountry);
+      // Double check if empty
       const filtered = sosList.filter(sos => 
-        sos.country?.toLowerCase() === detectedCountry?.toLowerCase()
+        sos.country?.toLowerCase() === detectedCountry?.toLowerCase() && 
+        (!animalTypeFilter || sos.animal_type === animalTypeFilter)
       );
-      setFilteredList(filtered);
       if (filtered.length === 0) {
-        alert(`We found your location (${detectedCountry}) but there are no SOS calls here right now.`);
+        alert(`We found your location (${detectedCountry}) but there are no matching SOS calls here right now.`);
       }
       setIsNearMeLoading(false);
     };
 
     const ipFallback = async () => {
       try {
-        // Fallback to IP-based location if GPS fails or times out
         const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en`);
         const data = await res.json();
         
@@ -81,42 +122,13 @@ export default function Home() {
       }
     };
 
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const { latitude, longitude } = position.coords;
-            const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
-            const data = await res.json();
-            
-            if (data && data.countryName) {
-              applyCountryFilter(data.countryName);
-            } else {
-              ipFallback();
-            }
-          } catch (e) {
-            ipFallback();
-          }
-        }, 
-        (error) => {
-          console.warn("Geolocation API failed, falling back to IP based location.", error);
-          if (error.code === 1) {
-             // User explicitly denied permission, still we can try IP fallback as it doesn't require explicit GPS permission
-             ipFallback();
-          } else {
-             // Timeout or position unavailable
-             ipFallback();
-          }
-        }, 
-        // Increased timeout to 15s and maximumAge to 5 minutes to ensure fast response if recently cached
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
-      );
-    } else {
-      ipFallback();
-    }
+    // Fast path: just use IP API directly for better UX (no permission prompts needed, instant)
+    // The user specifically requested a reliable alternative that does the job.
+    ipFallback();
   };
 
   const resetFilter = () => {
+    navigate('/');
     setFilteredList(sosList);
   };
 
@@ -125,6 +137,38 @@ export default function Home() {
     const urls = imageUrlsStr.split(',');
     setSelectedImages(urls);
     setCurrentImageIndex(0);
+  };
+
+  const handleVote = async (sosId: string, value: number) => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    // Optimistic UI could be added here, but since SQL tables might not exist, 
+    // let's just make the request and alert if error
+    if (!supabase) return;
+    
+    try {
+      const { error } = await supabase
+        .from('sos_votes')
+        .upsert({ 
+          sos_id: sosId, 
+          user_id: user.id, 
+          vote_value: value 
+        }, { onConflict: 'sos_id, user_id' });
+        
+      if (error) {
+        if (error.code === '42P01') {
+          alert('Voting system is not initialized yet. Please run the provided SQL script in Supabase.');
+        } else {
+          console.error(error);
+        }
+      } else {
+        alert('Vote recorded! (UI will update upon refresh once full voting logic is synced)');
+      }
+    } catch(err) {
+      console.error(err);
+    }
   };
 
   if (loading) {
@@ -149,17 +193,19 @@ export default function Home() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">SOS Feed</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {animalTypeFilter ? `${animalTypeFilter} SOS Feed` : 'SOS Feed'}
+          </h1>
           <p className="mt-2 text-gray-600">Help stray animals in need</p>
         </div>
         
-        <div className="flex gap-3">
-          {filteredList.length !== sosList.length && (
+        <div className="flex gap-3 items-center">
+          {(filteredList.length !== sosList.length || animalTypeFilter) && (
             <button
               onClick={resetFilter}
               className="text-sm font-medium text-gray-500 hover:text-gray-900 underline underline-offset-2 px-3 py-2"
             >
-              Show All
+              Clear Filters
             </button>
           )}
           <button
@@ -180,8 +226,8 @@ export default function Home() {
       {filteredList.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
           <Heart className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900">No active calls</h3>
-          <p className="mt-1 text-gray-500">There are currently no stray animal reports here.</p>
+          <h3 className="text-lg font-medium text-gray-900">No active calls found</h3>
+          <p className="mt-1 text-gray-500">There are currently no stray animal reports matching your criteria.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -190,10 +236,10 @@ export default function Home() {
             const displayImage = images.length > 0 ? images[0] : null;
 
             return (
-              <div key={sos.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+              <div key={sos.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition-all duration-300">
                 {displayImage ? (
                   <div 
-                    className="relative w-full h-72 bg-gray-200 cursor-pointer group"
+                    className="relative w-full h-72 bg-gray-200 cursor-pointer group rounded-t-2xl overflow-hidden"
                     onClick={() => openImageModal(sos.image_url)}
                   >
                     <img 
@@ -206,38 +252,76 @@ export default function Home() {
                         + {images.length - 1} more
                       </div>
                     )}
+                    {sos.animal_type && (
+                      <div className="absolute top-3 left-3 bg-white/90 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm shadow-sm">
+                        {sos.animal_type}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="w-full h-72 bg-gray-100 flex items-center justify-center">
+                  <div className="w-full h-72 bg-gray-100 flex items-center justify-center rounded-t-2xl relative">
                     <AlertCircle className="h-12 w-12 text-gray-300" />
+                    {sos.animal_type && (
+                      <div className="absolute top-3 left-3 bg-white/90 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
+                        {sos.animal_type}
+                      </div>
+                    )}
                   </div>
                 )}
                 
-                <div className="p-6 flex-1 flex flex-col">
-                  <div className="flex items-center gap-1.5 text-sm text-gray-600 mb-3 font-medium">
-                    <MapPin className="h-4 w-4 text-indigo-500" />
-                    <span>{sos.area ? `${sos.area}, ` : ''}{sos.region}, {sos.country}</span>
-                  </div>
-                  
-                  <p className="text-gray-800 mb-6 flex-1 text-base leading-relaxed line-clamp-3">
-                    {sos.description}
-                  </p>
-                  
-                  <div className="flex items-center justify-between mt-auto pt-5 border-t border-gray-100">
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
-                      <Clock className="h-4 w-4" />
-                      <span>{new Date(sos.created_at).toLocaleDateString()}</span>
-                    </div>
+                <div className="p-0 flex-1 flex flex-col">
+                  <div className="flex">
                     
-                    {user?.id !== sos.user_id && (
-                      <button
-                        onClick={() => handleRespond(sos)}
-                        className="flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm transition"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        Respond
+                    {/* Reddit style voting sidebar */}
+                    <div className="w-12 bg-gray-50 flex flex-col items-center py-4 border-r border-gray-100 rounded-bl-2xl">
+                      <button onClick={() => handleVote(sos.id, 1)} className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded">
+                        <ArrowUp className="h-6 w-6" />
                       </button>
-                    )}
+                      <span className="font-bold text-gray-700 my-1 text-sm">
+                        {sos.vote_score || 0}
+                      </span>
+                      <button onClick={() => handleVote(sos.id, -1)} className="p-1 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded">
+                        <ArrowDown className="h-6 w-6" />
+                      </button>
+                    </div>
+
+                    <div className="p-5 flex-1 flex flex-col">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-600 mb-3 font-medium">
+                        <MapPin className="h-4 w-4 text-indigo-500" />
+                        <span>{sos.area ? `${sos.area}, ` : ''}{sos.region}, {sos.country}</span>
+                      </div>
+                      
+                      <p className="text-gray-800 mb-6 flex-1 text-base leading-relaxed line-clamp-3">
+                        {sos.description}
+                      </p>
+                      
+                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
+                          <Clock className="h-4 w-4" />
+                          <span>{new Date(sos.created_at).toLocaleDateString()}</span>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                           <button
+                            onClick={() => navigate(`/sos/${sos.id}`)}
+                            className="flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100 transition"
+                           >
+                             <MessageCircle className="h-4 w-4" />
+                             Comments
+                           </button>
+                           
+                           {user?.id !== sos.user_id && (
+                            <button
+                              onClick={() => handleRespond(sos)}
+                              className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm transition"
+                            >
+                              Respond
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               </div>
