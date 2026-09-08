@@ -113,8 +113,8 @@ export default function Messages() {
   if (!otherUserId || !sosId) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-4">Your Conversations</h2>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-500">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">Your Conversations</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
           Select an SOS call from the home page to start a conversation.
         </div>
       </div>
@@ -127,29 +127,29 @@ export default function Messages() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 h-[calc(100vh-4rem)] flex flex-col">
-      <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 hover:text-gray-900 mb-4 transition">
+      <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4 transition w-fit">
         <ArrowLeft className="h-4 w-4 mr-1" /> Back
       </button>
 
-      <div className="bg-white rounded-t-xl shadow-sm border border-gray-100 p-4 border-b-0 flex items-center justify-between">
+      <div className="bg-white dark:bg-gray-800 rounded-t-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 border-b-0 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">
             Chat with {otherUser?.email?.split('@')[0] || 'User'}
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Regarding SOS in {sosDetails?.region}, {sosDetails?.country}
           </p>
         </div>
       </div>
 
-      <div className="flex-1 bg-gray-50 border-l border-r border-gray-100 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 bg-gray-50 dark:bg-gray-900 border-l border-r border-gray-100 dark:border-gray-700 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => {
           const isMe = msg.sender_id === user?.id;
           return (
             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] rounded-lg p-3 ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-gray-200 text-gray-900 rounded-bl-none'}`}>
+              <div className={`max-w-[75%] rounded-lg p-3 ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-bl-none'}`}>
                 <p className="text-sm">{msg.content}</p>
-                <span className={`text-[10px] mt-1 block ${isMe ? 'text-indigo-200' : 'text-gray-400'}`}>
+                <span className={`text-[10px] mt-1 block ${isMe ? 'text-indigo-200' : 'text-gray-400 dark:text-gray-400'}`}>
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
@@ -159,11 +159,11 @@ export default function Messages() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="bg-white rounded-b-xl shadow-sm border border-gray-100 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-b-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input
             type="text"
-            className="flex-1 rounded-full border-gray-300 border px-4 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            className="flex-1 rounded-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white border px-4 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             placeholder="Type your message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}

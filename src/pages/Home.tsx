@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { AnimalSOS } from '../types';
 import { useAuth } from '../components/AuthProvider';
-import { MapPin, Clock, MessageCircle, AlertCircle, Navigation, Heart, ChevronRight, ChevronLeft, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { MapPin, Clock, MessageCircle, AlertCircle, Navigation, Heart, ChevronRight, ChevronLeft, X, ArrowUp, ArrowDown, MoreVertical, Trash2, Edit2 } from 'lucide-react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 
 export default function Home() {
@@ -10,6 +10,7 @@ export default function Home() {
   const [filteredList, setFilteredList] = useState<AnimalSOS[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNearMeLoading, setIsNearMeLoading] = useState(false);
+  const [isNearMeActive, setIsNearMeActive] = useState(false);
   const [searchParams] = useSearchParams();
   const animalTypeFilter = searchParams.get('type');
   
@@ -92,6 +93,12 @@ export default function Home() {
   };
 
   const handleNearMe = async () => {
+    if (isNearMeActive) {
+      setIsNearMeActive(false);
+      applyFilters(sosList, undefined);
+      return;
+    }
+
     setIsNearMeLoading(true);
 
     const applyCountryFilter = (detectedCountry: string) => {
@@ -103,6 +110,8 @@ export default function Home() {
       );
       if (filtered.length === 0) {
         alert(`We found your location (${detectedCountry}) but there are no matching SOS calls here right now.`);
+      } else {
+        setIsNearMeActive(true);
       }
       setIsNearMeLoading(false);
     };
@@ -131,6 +140,7 @@ export default function Home() {
 
   const resetFilter = () => {
     navigate('/');
+    setIsNearMeActive(false);
     setFilteredList(sosList);
   };
 
@@ -224,6 +234,22 @@ export default function Home() {
     }
   };
 
+  const handleDelete = async (sosId: string) => {
+    if (!window.confirm("Are you sure you want to delete this SOS call?")) return;
+    
+    if (!supabase) return;
+    const { error } = await supabase.from('animal_sos').delete().eq('id', sosId).eq('user_id', user?.id);
+    
+    if (error) {
+      alert("Failed to delete post.");
+      console.error(error);
+    } else {
+      setSosList(prev => prev.filter(s => s.id !== sosId));
+    }
+  };
+
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -264,14 +290,16 @@ export default function Home() {
           <button
             onClick={handleNearMe}
             disabled={isNearMeLoading}
-            className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-md font-medium hover:bg-indigo-100 transition disabled:opacity-50"
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition disabled:opacity-50 ${isNearMeActive ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
           >
             {isNearMeLoading ? (
-              <div className="h-4 w-4 border-2 border-indigo-700 border-t-transparent rounded-full animate-spin"></div>
+              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+            ) : isNearMeActive ? (
+              <X className="h-4 w-4" />
             ) : (
               <Navigation className="h-4 w-4" />
             )}
-            Calls Near Me
+            {isNearMeActive ? 'Clear Location' : 'Calls Near Me'}
           </button>
         </div>
       </div>
@@ -291,9 +319,9 @@ export default function Home() {
             return (
               <div key={sos.id} className="bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-300 dark:border-gray-700 flex flex-col hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
                 
-                <div className="p-4 flex flex-col">
+                <div className="p-4 flex flex-col relative">
                   {/* Header */}
-                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3 flex-wrap pr-8">
                      <Link to={`/user/${sos.user_id}`} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" onClick={(e) => e.stopPropagation()}>
                        {sos.profiles?.avatar_url ? (
                          <img src={sos.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100 dark:bg-gray-700" />
@@ -314,6 +342,35 @@ export default function Home() {
                      <MapPin className="h-3 w-3 ml-1" />
                      <span>{sos.area ? `${sos.area}, ` : ''}{sos.region}, {sos.country}</span>
                   </div>
+
+                  {user?.id === sos.user_id && (
+                    <div className="absolute top-4 right-4">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpenId(menuOpenId === sos.id ? null : sos.id);
+                        }}
+                        className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 transition-colors"
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
+                      
+                      {menuOpenId === sos.id && (
+                        <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10 overflow-hidden">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(sos.id);
+                              setMenuOpenId(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   {/* Content */}
                   <p className="text-gray-900 dark:text-gray-100 text-sm mb-3">

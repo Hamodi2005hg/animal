@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { AnimalSOS } from '../types';
 import { useAuth } from '../components/AuthProvider';
-import { MapPin, Clock, AlertCircle, CheckCircle, Navigation, Heart, ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { MapPin, Clock, AlertCircle, CheckCircle, Navigation, Heart, ChevronRight, ChevronLeft, X, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function MyCalls() {
@@ -37,6 +37,24 @@ export default function MyCalls() {
       setMyList(data as AnimalSOS[]);
     }
     setLoading(false);
+  };
+
+  const handleDeleteSOS = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this SOS call?")) return;
+    if (!supabase || !user) return;
+    
+    const { error } = await supabase
+      .from('animal_sos')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      alert("Failed to delete. Make sure you have the DELETE policy set up.");
+      console.error(error);
+    } else {
+      setMyList(prev => prev.filter(sos => sos.id !== id));
+    }
   };
 
   const handleResolveSOS = async (id: string) => {
@@ -154,15 +172,24 @@ export default function MyCalls() {
                       <span>{new Date(sos.created_at).toLocaleDateString()}</span>
                     </div>
                     
-                    {!isResolved && (
+                    <div className="flex gap-2">
                       <button
-                        onClick={() => handleResolveSOS(sos.id)}
-                        className="flex items-center gap-1.5 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 shadow-sm transition"
+                        onClick={() => handleDeleteSOS(sos.id)}
+                        className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition"
                       >
-                        <CheckCircle className="h-4 w-4" />
-                        Mark as Sheltered
+                        <Trash2 className="h-4 w-4" />
                       </button>
-                    )}
+                      
+                      {!isResolved && (
+                        <button
+                          onClick={() => handleResolveSOS(sos.id)}
+                          className="flex items-center gap-1.5 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 shadow-sm transition"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Mark as Sheltered
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
