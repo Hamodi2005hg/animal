@@ -12,11 +12,9 @@ import {
   Settings,
   Moon,
   Sun,
-  User as UserIcon,
-  Trophy,
-  Shield
+  Trophy
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppNotification } from '../types';
 import { getProfileBadge } from '../utils/karmaHelpers';
 
@@ -168,18 +166,18 @@ export default function Navbar() {
   };
 
   const getNotificationText = (n: AppNotification) => {
-    const actorName = n.actor?.username || n.actor?.email?.split('@')[0] || 'مستخدم';
-    if (n.type === 'vote') return `صوّت ${actorName} على بلاغك/منشورك`;
-    if (n.type === 'comment') return `علّق ${actorName} على منشورك`;
-    if (n.type === 'reply') return `رد ${actorName} على تعليقك`;
-    if (n.type === 'message') return `أرسل لك ${actorName} رسالة جديدة`;
-    return 'إشعار جديد';
+    const actorName = n.actor?.username || n.actor?.email?.split('@')[0] || 'A user';
+    if (n.type === 'vote') return `${actorName} voted on your post`;
+    if (n.type === 'comment') return `${actorName} commented on your post`;
+    if (n.type === 'reply') return `${actorName} replied to your comment`;
+    if (n.type === 'message') return `${actorName} sent you a direct message`;
+    return 'New notification';
   };
 
   const { badge, karma } = getProfileBadge(profile);
 
   return (
-    <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 relative z-50">
+    <nav className="bg-white dark:bg-gray-800 shadow-xs border-b border-gray-200 dark:border-gray-700 relative z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo & Brand */}
@@ -188,7 +186,7 @@ export default function Navbar() {
               to="/"
               className="flex-shrink-0 flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 transition-colors"
             >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-sm">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-xs">
                 <Heart className="h-5 w-5 fill-current" />
               </div>
               <div>
@@ -196,7 +194,7 @@ export default function Navbar() {
                   Pet Reddit
                 </span>
                 <span className="text-[10px] text-gray-500 dark:text-gray-400 block -mt-1 font-medium">
-                  أنقذ وشارك
+                  Rescue & Share
                 </span>
               </div>
             </Link>
@@ -205,25 +203,25 @@ export default function Navbar() {
           {/* Quick Animal Filter in Search */}
           <div className="flex-1 max-w-xs sm:max-w-sm mx-3">
             <div className="relative w-full">
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-3.5 w-3.5 text-gray-400" />
               </div>
               <select
                 onChange={handleSearch}
                 value={searchParams.get('type') || ''}
-                className="block w-full pr-8 pl-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-full text-xs bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="block w-full pl-8 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-full text-xs bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
-                <option value="">كل الحيوانات (All)</option>
-                <option value="Dog">كلاب (Dogs)</option>
-                <option value="Cat">قطط (Cats)</option>
-                <option value="Bird">طيور (Birds)</option>
-                <option value="Other">حيوانات أخرى (Other)</option>
+                <option value="">All Animals</option>
+                <option value="Dog">Dogs</option>
+                <option value="Cat">Cats</option>
+                <option value="Bird">Birds</option>
+                <option value="Other">Other Animals</option>
               </select>
             </div>
           </div>
 
           {/* Navigation Right Menu */}
-          <div className="flex items-center space-x-2 sm:space-x-3 space-x-reverse">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             {user ? (
               <>
                 <Link
@@ -231,13 +229,14 @@ export default function Navbar() {
                   className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 py-1.5 px-3 rounded-full text-xs font-bold transition shadow-xs"
                 >
                   <PlusCircle className="h-4 w-4" />
-                  <span className="hidden sm:inline">نشر بلاغ / قصة</span>
+                  <span className="hidden sm:inline">Post / SOS</span>
                 </Link>
 
                 <Link
                   to="/messages"
                   className="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                  title="الرسائل"
+                  title="Messages"
+                  aria-label="Messages"
                 >
                   <MessageCircle className="h-5 w-5" />
                 </Link>
@@ -250,7 +249,8 @@ export default function Navbar() {
                       if (!showNotifications) markNotificationsRead();
                     }}
                     className="p-2 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 relative rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                    title="الإشعارات"
+                    title="Notifications"
+                    aria-label="Notifications"
                   >
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
@@ -261,15 +261,15 @@ export default function Navbar() {
                   </button>
 
                   {showNotifications && (
-                    <div className="absolute left-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+                    <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-50">
                       <div className="p-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 font-bold text-xs text-gray-900 dark:text-white flex items-center justify-between">
-                        <span>الإشعارات</span>
-                        <span className="text-[10px] text-gray-400">تحديث فوري</span>
+                        <span>Notifications</span>
+                        <span className="text-[10px] text-gray-400">Live</span>
                       </div>
                       <div className="max-h-80 overflow-y-auto">
                         {notifications.length === 0 ? (
                           <div className="p-5 text-center text-gray-500 text-xs">
-                            لا توجد إشعارات جديدة حالياً
+                            No notifications yet
                           </div>
                         ) : (
                           notifications.map((n) => (
@@ -299,7 +299,7 @@ export default function Navbar() {
                                   {getNotificationText(n)}
                                 </p>
                                 <p className="text-[10px] text-gray-400 mt-0.5">
-                                  {new Date(n.created_at).toLocaleDateString('ar-EG')}
+                                  {new Date(n.created_at).toLocaleDateString('en-US')}
                                 </p>
                               </div>
                             </div>
@@ -315,6 +315,7 @@ export default function Navbar() {
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center gap-1.5 p-1 rounded-full border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                    aria-label="User menu"
                   >
                     <div className="h-7 w-7 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs font-bold">
                       {profile?.avatar_url ? (
@@ -326,7 +327,7 @@ export default function Navbar() {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute left-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden py-1">
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden py-1 z-50">
                       {/* User details with Karma & Badge */}
                       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 mb-1 bg-gray-50 dark:bg-gray-750">
                         <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
@@ -334,10 +335,10 @@ export default function Navbar() {
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                            ⭐ {karma} كارما
+                            ⭐ {karma} Karma
                           </span>
                           <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                            {badge.name}
+                            {badge.nameEn || badge.name}
                           </span>
                         </div>
                       </div>
@@ -348,7 +349,7 @@ export default function Navbar() {
                         className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <Trophy className="h-3.5 w-3.5 text-amber-500" />
-                        <span>ملفي الشخصي والشارات</span>
+                        <span>Profile & Badges</span>
                       </Link>
 
                       <Link
@@ -357,7 +358,7 @@ export default function Navbar() {
                         className="flex items-center gap-2 px-4 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <Archive className="h-3.5 w-3.5" />
-                        <span>سجل بلاغاتي ومشاركاتي</span>
+                        <span>My Reports & Posts</span>
                       </Link>
 
                       <Link
@@ -366,16 +367,16 @@ export default function Navbar() {
                         className="flex items-center gap-2 px-4 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <Settings className="h-3.5 w-3.5" />
-                        <span>إعدادات الحساب</span>
+                        <span>Account Settings</span>
                       </Link>
 
                       <button
                         onClick={toggleDarkMode}
-                        className="w-full flex items-center justify-between px-4 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-right"
+                        className="w-full flex items-center justify-between px-4 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
                       >
                         <div className="flex items-center gap-2">
                           {isDark ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
-                          <span>الوضع الليلي</span>
+                          <span>Dark Mode</span>
                         </div>
                         <div
                           className={`w-7 h-3.5 rounded-full flex items-center p-0.5 ${
@@ -389,10 +390,10 @@ export default function Navbar() {
                       <div className="border-t border-gray-100 dark:border-gray-700 mt-1">
                         <button
                           onClick={handleSignOut}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-right font-bold"
+                          className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left font-bold"
                         >
                           <LogOut className="h-3.5 w-3.5" />
-                          <span>تسجيل الخروج</span>
+                          <span>Sign Out</span>
                         </button>
                       </div>
                     </div>
@@ -404,7 +405,7 @@ export default function Navbar() {
                 to="/auth"
                 className="bg-indigo-600 text-white px-4 py-1.5 rounded-full text-xs font-bold hover:bg-indigo-700 transition shadow-xs"
               >
-                تسجيل الدخول
+                Sign In
               </Link>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { AnimalSOS, SOSComment } from '../types';
@@ -10,12 +10,10 @@ import {
   MapPin,
   Sparkles,
   MessageCircle,
-  Eye,
   CheckCircle2,
   Share2,
-  ChevronRight,
-  ChevronLeft,
-  X
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { extractPostMetadata, SUBREDDITS, MARKETPLACE_CATEGORIES } from '../utils/postHelpers';
 import { getProfileBadge } from '../utils/karmaHelpers';
@@ -42,15 +40,26 @@ export default function SOSDetails() {
     if (!supabase || !id) return;
 
     try {
-      // Fetch SOS
+      // Fetch SOS with votes
       const { data: sosData } = await supabase
         .from('animal_sos')
-        .select('*, profiles(id, email, username, avatar_url, karma, rescue_badge)')
+        .select('*, profiles(id, email, username, avatar_url, karma, rescue_badge), sos_votes(user_id, vote_value)')
         .eq('id', id)
         .single();
 
       if (sosData) {
-        setSos(extractPostMetadata(sosData as AnimalSOS));
+        const votes = sosData.sos_votes || [];
+        const upvotes = votes.filter((v: any) => v.vote_value === 1).length;
+        const downvotes = votes.filter((v: any) => v.vote_value === -1).length;
+        const userVote = user ? votes.find((v: any) => v.user_id === user.id)?.vote_value : 0;
+        setSos(
+          extractPostMetadata({
+            ...sosData,
+            upvotes,
+            downvotes,
+            user_vote: userVote
+          })
+        );
       }
 
       // Fetch comments
@@ -70,6 +79,77 @@ export default function SOSDetails() {
     }
   };
 
+  const handleVote = async (value: number) => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    if (!supabase || !sos) return;
+
+    const previousVote = sos.user_vote || 0;
+    const isRemoving = previousVote === value;
+
+    let newUpvotes = sos.upvotes || 0;
+    let newDownvotes = sos.downvotes || 0;
+
+    if (isRemoving) {
+      if (value === 1) newUpvotes = Math.max(0, newUpvotes - 1);
+      if (value === -1) newDownvotes = Math.max(0, newDownvotes - 1);
+      setSos({
+        ...sos,
+        upvotes: newUpvotes,
+        downvotes: newDownvotes,
+        user_vote: 0
+      });
+    } else {
+      if (previousVote === 1) newUpvotes = Math.max(0, newUpvotes - 1);
+      if (previousVote === -1) newDownvotes = Math.max(0, newDownvotes - 1);
+      if (value === 1) newUpvotes += 1;
+      if (value === -1) newDownvotes += 1;
+      setSos({
+        ...sos,
+        upvotes: newUpvotes,
+        downvotes: newDownvotes,
+        user_vote: value
+      });
+    }
+
+    try {
+      if (isRemoving) {
+        await supabase
+          .from('sos_votes')
+          .delete()
+          .eq('sos_id', sos.id)
+          .eq('user_id', user.id);
+      } else {
+        await supabase.from('sos_votes').upsert(
+          {
+            sos_id: sos.id,
+            user_id: user.id,
+            vote_value: value
+          },
+          { onConflict: 'sos_id, user_id' }
+        );
+
+        if (sos.user_id !== user.id) {
+          try {
+            await supabase.from('notifications').insert({
+              user_id: sos.user_id,
+              actor_id: user.id,
+              type: 'vote',
+              post_id: sos.id
+            });
+          } catch (e) {
+            console.warn('Notification error:', e);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Vote error:', err);
+      fetchSOSDetails();
+    }
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -86,29 +166,26 @@ export default function SOSDetails() {
         parent_id: replyingTo
       };
 
-      // If anonymous, append tag or field
       if (isAnonymousComment) {
         commentPayload.is_anonymous = true;
       }
 
       let { error } = await supabase.from('sos_comments').insert([commentPayload]);
 
-      // If column is_anonymous not in database yet, fallback without it
       if (error && error.code === '42703') {
         delete commentPayload.is_anonymous;
-        commentPayload.content = `[مجهول] ${commentPayload.content}`;
+        commentPayload.content = `[Anonymous] ${commentPayload.content}`;
         const fallbackRes = await supabase.from('sos_comments').insert([commentPayload]);
         error = fallbackRes.error;
       }
 
       if (error) {
         if (error.code === '42P01') {
-          alert('جدول التعليقات غير منشأ بعد في قاعدة البيانات.');
+          alert('Comments table is not created yet in database.');
         } else {
           throw error;
         }
       } else {
-        // Notification
         if (sos && sos.user_id !== user.id && !replyingTo) {
           try {
             await supabase.from('notifications').insert({
@@ -151,14 +228,14 @@ export default function SOSDetails() {
     return (
       <div className="text-center py-12">
         <AlertCircle className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-          المنشور غير موجود
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          Post Not Found
         </h3>
         <button
           onClick={() => navigate('/')}
           className="mt-4 text-xs font-bold text-indigo-600 underline"
         >
-          العودة للمجتمعات
+          Return to Feeds
         </button>
       </div>
     );
@@ -180,7 +257,7 @@ export default function SOSDetails() {
           className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-3 py-1.5 rounded-full font-bold text-xs transition"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>العودة للرئيسية</span>
+          <span>Back to Feeds</span>
         </button>
 
         <button
@@ -188,12 +265,12 @@ export default function SOSDetails() {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
         >
           <Share2 className="w-3.5 h-3.5" />
-          <span>{showCopied ? 'تم نسخ الرابط ✓' : 'مشاركة المنشور'}</span>
+          <span>{showCopied ? 'Link Copied! ✓' : 'Share Post'}</span>
         </button>
       </div>
 
       {/* Main Post Card */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xs border border-gray-200 dark:border-gray-700 p-6 mb-8">
         {/* Header Tags */}
         <div className="flex items-center gap-2 flex-wrap text-xs mb-3">
           <span className="inline-flex items-center gap-1 font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-full">
@@ -202,28 +279,28 @@ export default function SOSDetails() {
           </span>
 
           {sos.urgency === 'critical' && (
-            <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-bold px-2.5 py-1 rounded-full animate-pulse">
-              🚨 حرج جداً (خطر موت)
+            <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-bold px-2.5 py-1 rounded-full animate-pulse border border-red-200 dark:border-red-800">
+              🚨 Critical SOS
             </span>
           )}
 
           {marketplaceInfo && (
-            <span className="inline-flex items-center gap-1 bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 font-bold px-2.5 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1 bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 font-bold px-2.5 py-1 rounded-full border border-orange-200 dark:border-orange-800">
               {marketplaceInfo.icon} {marketplaceInfo.label}
             </span>
           )}
 
           {sos.status === 'resolved' && (
-            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold px-2.5 py-1 rounded-full">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              تم الإنقاذ بنجاح ✓
+              Rescued Successfully ✓
             </span>
           )}
         </div>
 
         {/* Title */}
         <h1 className="text-2xl font-black text-gray-900 dark:text-white mb-3">
-          {sos.title || `${sos.animal_type || 'حيوان'} في ${sos.region}`}
+          {sos.title || `${sos.animal_type || 'Animal'} in ${sos.region}`}
         </h1>
 
         {/* Author / Anonymity Line */}
@@ -233,9 +310,9 @@ export default function SOSDetails() {
               <span className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs">
                 🕵️
               </span>
-              <span className="font-bold">فاعل خير مجهول (Anonymous Guardian)</span>
+              <span className="font-bold">Anonymous Guardian</span>
               <span className="text-[10px] bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-500">
-                هوية محمية
+                Protected Identity
               </span>
             </div>
           ) : (
@@ -257,7 +334,7 @@ export default function SOSDetails() {
                 className={`inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold rounded-md ${badge.bgColor} ${badge.textColor} border ${badge.border}`}
               >
                 <span>{badge.icon}</span>
-                <span>{badge.name}</span>
+                <span>{badge.nameEn || badge.name}</span>
               </span>
               <span className="text-amber-600 dark:text-amber-400 font-mono font-bold">
                 ⭐ {karma}
@@ -267,7 +344,7 @@ export default function SOSDetails() {
 
           <span className="text-gray-400">•</span>
           <span className="text-gray-500">
-            {new Date(sos.created_at).toLocaleDateString('ar-EG', {
+            {new Date(sos.created_at).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'long',
               day: 'numeric'
@@ -278,10 +355,10 @@ export default function SOSDetails() {
         {/* Location Box */}
         <div className="bg-gray-50 dark:bg-gray-700/40 p-3 rounded-xl flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 mb-5">
           <MapPin className="w-4 h-4 text-red-500 flex-shrink-0" />
-          <span className="font-bold">الموقع:</span>
+          <span className="font-bold">Location:</span>
           <span>
-            {sos.area ? `${sos.area}، ` : ''}
-            {sos.region}، {sos.country}
+            {sos.area ? `${sos.area}, ` : ''}
+            {sos.region}, {sos.country}
           </span>
         </div>
 
@@ -295,25 +372,25 @@ export default function SOSDetails() {
           <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/30 border border-pink-200 dark:border-pink-900/40">
             <h3 className="font-bold text-sm text-pink-900 dark:text-pink-200 flex items-center gap-1.5 mb-3">
               <Sparkles className="w-4 h-4 text-pink-500" />
-              <span>رحلة التحول والشفاء (Before & After)</span>
+              <span>Transformation Story (Before & After)</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div
                 onClick={() => images[0] && setSelectedImage(images[0])}
-                className="relative aspect-video sm:aspect-square rounded-xl overflow-hidden cursor-pointer shadow-sm group"
+                className="relative aspect-video sm:aspect-square rounded-xl overflow-hidden cursor-pointer shadow-xs group"
               >
                 {images[0] && <img src={images[0]} alt="Before" className="w-full h-full object-cover" />}
-                <span className="absolute bottom-3 right-3 bg-red-600/90 text-white text-xs font-bold px-3 py-1 rounded-md">
-                  قبل الإنقاذ
+                <span className="absolute bottom-3 left-3 bg-red-600/90 text-white text-xs font-bold px-3 py-1 rounded-md">
+                  Before Rescue
                 </span>
               </div>
               <div
                 onClick={() => setSelectedImage(sos.before_after_image_url!)}
-                className="relative aspect-video sm:aspect-square rounded-xl overflow-hidden cursor-pointer shadow-sm group border-2 border-emerald-400"
+                className="relative aspect-video sm:aspect-square rounded-xl overflow-hidden cursor-pointer shadow-xs group border-2 border-emerald-400"
               >
                 <img src={sos.before_after_image_url} alt="After" className="w-full h-full object-cover" />
-                <span className="absolute bottom-3 right-3 bg-emerald-600/90 text-white text-xs font-bold px-3 py-1 rounded-md">
-                  بعد التعافي والتبني ✨
+                <span className="absolute bottom-3 left-3 bg-emerald-600/90 text-white text-xs font-bold px-3 py-1 rounded-md">
+                  After Adoption & Recovery ✨
                 </span>
               </div>
             </div>
@@ -335,33 +412,71 @@ export default function SOSDetails() {
           </div>
         )}
 
-        {/* Contact Rescuer Button */}
-        {user && user.id !== sos.user_id && (
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+        {/* Bottom Actions Bar: Separate Upvote & Downvote buttons adjacent to comments and contact */}
+        <div className="pt-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Separate Upvote Button */}
+            <button
+              onClick={() => handleVote(1)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-xs transition-colors ${
+                sos.user_vote === 1
+                  ? 'bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-600'
+              }`}
+              title="Upvote"
+              aria-label="Upvote"
+            >
+              <ArrowUp className="w-4 h-4" />
+              <span className="font-mono">{sos.upvotes || 0}</span>
+            </button>
+
+            {/* Separate Downvote Button */}
+            <button
+              onClick={() => handleVote(-1)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-xs transition-colors ${
+                sos.user_vote === -1
+                  ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 hover:text-indigo-600'
+              }`}
+              title="Downvote"
+              aria-label="Downvote"
+            >
+              <ArrowDown className="w-4 h-4" />
+              <span className="font-mono">{sos.downvotes || 0}</span>
+            </button>
+
+            <span className="text-xs text-gray-500 flex items-center gap-1 px-2">
+              <MessageCircle className="w-4 h-4" />
+              <span>{comments.length} Comments</span>
+            </span>
+          </div>
+
+          {/* Contact Rescuer Button */}
+          {user && user.id !== sos.user_id && (
             <button
               onClick={() => navigate(`/messages?user=${sos.user_id}&sos=${sos.id}`)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-5 rounded-xl transition shadow-sm"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-xl transition shadow-xs"
             >
-              مراسلة صاحب البلاغ مباشرة
+              Message Post Author Directly
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Comments Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xs border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-lg font-black text-gray-900 dark:text-white mb-6 flex items-center gap-2">
           <MessageCircle className="w-5 h-5 text-indigo-600" />
-          <span>التعليقات والمناقشات ({comments.length})</span>
+          <span>Comments & Discussions ({comments.length})</span>
         </h2>
 
         {/* Comment Input Box */}
         <form onSubmit={handlePostComment} className="bg-gray-50 dark:bg-gray-700/40 p-4 rounded-xl border border-gray-200 dark:border-gray-700 mb-8">
           {replyingTo && (
             <div className="flex justify-between items-center mb-2 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 px-3 py-1 rounded-lg text-xs font-bold">
-              <span>الرد على تعليق...</span>
+              <span>Replying to comment...</span>
               <button type="button" onClick={() => setReplyingTo(null)} className="hover:underline">
-                إلغاء
+                Cancel
               </button>
             </div>
           )}
@@ -369,7 +484,7 @@ export default function SOSDetails() {
           <textarea
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            placeholder={user ? "اكتب تعليقاً أو نصيحة أو تفاصيل مساعدة..." : "سجل الدخول لتتمكن من كتابة تعليق"}
+            placeholder={user ? "Write a comment, advice, or assistance offer..." : "Sign in to leave a comment"}
             className="w-full bg-transparent border-0 focus:ring-0 resize-none outline-none text-sm p-2 text-gray-900 dark:text-white"
             rows={3}
             disabled={!user}
@@ -384,7 +499,7 @@ export default function SOSDetails() {
                 onChange={(e) => setIsAnonymousComment(e.target.checked)}
                 className="rounded text-indigo-600 focus:ring-indigo-500"
               />
-              <span>🕵️ التعليق بهوية مجهولة</span>
+              <span>🕵️ Comment Anonymously</span>
             </label>
 
             <button
@@ -393,7 +508,7 @@ export default function SOSDetails() {
               className="bg-indigo-600 text-white text-xs font-bold py-2 px-4 rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition flex items-center gap-1.5"
             >
               <Send className="h-3.5 w-3.5" />
-              <span>إرسال التعليق</span>
+              <span>Post Comment</span>
             </button>
           </div>
         </form>
@@ -402,16 +517,16 @@ export default function SOSDetails() {
         <div className="space-y-4">
           {rootComments.length === 0 ? (
             <p className="text-gray-400 text-center text-xs py-6">
-              لا توجد تعليقات بعد، كن أول من يشارك!
+              No comments yet. Be the first to join the conversation!
             </p>
           ) : (
             rootComments.map((comment) => (
               <div key={comment.id} className="border-b border-gray-100 dark:border-gray-700/60 pb-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    {comment.is_anonymous || comment.content.startsWith('[مجهول]') ? (
+                    {comment.is_anonymous || comment.content.startsWith('[Anonymous]') || comment.content.startsWith('[مجهول]') ? (
                       <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                        🕵️ فاعل خير مجهول
+                        🕵️ Anonymous Guardian
                       </span>
                     ) : (
                       <Link to={`/user/${comment.user_id}`} className="flex items-center gap-2 text-xs font-bold hover:underline">
@@ -423,32 +538,32 @@ export default function SOSDetails() {
                     )}
                   </div>
                   <span className="text-[10px] text-gray-400">
-                    {new Date(comment.created_at).toLocaleDateString('ar-EG')}
+                    {new Date(comment.created_at).toLocaleDateString('en-US')}
                   </span>
                 </div>
 
-                <p className="text-sm text-gray-800 dark:text-gray-200 pr-8 whitespace-pre-line mb-2">
-                  {comment.content.replace(/^\[مجهول\]\s*/, '')}
+                <p className="text-sm text-gray-800 dark:text-gray-200 pl-8 whitespace-pre-line mb-2">
+                  {comment.content.replace(/^(\[Anonymous\]|\[مجهول\])\s*/, '')}
                 </p>
 
                 <button
                   onClick={() => setReplyingTo(comment.id)}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 font-bold pr-8 hover:underline"
+                  className="text-xs text-indigo-600 dark:text-indigo-400 font-bold pl-8 hover:underline"
                 >
-                  رد
+                  Reply
                 </button>
 
                 {/* Sub-replies */}
                 {getReplies(comment.id).length > 0 && (
-                  <div className="pr-8 mt-3 space-y-3 border-r-2 border-gray-100 dark:border-gray-700 mr-2">
+                  <div className="pl-8 mt-3 space-y-3 border-l-2 border-gray-100 dark:border-gray-700 ml-2">
                     {getReplies(comment.id).map((reply) => (
-                      <div key={reply.id} className="pr-4">
+                      <div key={reply.id} className="pl-4">
                         <div className="flex items-center gap-2 text-xs mb-1">
                           <span className="font-bold">
                             {reply.profiles?.username || reply.profiles?.email?.split('@')[0]}
                           </span>
                           <span className="text-[10px] text-gray-400">
-                            {new Date(reply.created_at).toLocaleDateString('ar-EG')}
+                            {new Date(reply.created_at).toLocaleDateString('en-US')}
                           </span>
                         </div>
                         <p className="text-xs text-gray-700 dark:text-gray-300">

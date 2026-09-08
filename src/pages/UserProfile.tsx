@@ -8,13 +8,6 @@ import {
   Facebook,
   Instagram,
   Twitter,
-  Trophy,
-  Shield,
-  Heart,
-  CheckCircle2,
-  Sparkles,
-  ChevronRight,
-  ChevronLeft,
   X
 } from 'lucide-react';
 import PostCard from '../components/PostCard';
@@ -194,7 +187,7 @@ export default function UserProfile() {
   };
 
   const handleDelete = async (sosId: string) => {
-    if (!window.confirm('هل أنت متأكد من رغبتك في حذف هذا المنشور؟')) return;
+    if (!window.confirm('Are you sure you want to delete this post?')) return;
     if (!supabase || !user) return;
 
     const { error } = await supabase
@@ -233,7 +226,7 @@ export default function UserProfile() {
     return (
       <div className="text-center py-16">
         <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
-          المستخدم غير موجود
+          User Not Found
         </h3>
       </div>
     );
@@ -247,16 +240,16 @@ export default function UserProfile() {
           className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 px-3 py-1.5 rounded-full transition-colors w-fit"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>العودة إلى مجتمعات الحيوانات</span>
+          <span>Back to Pet Reddit</span>
         </button>
       </div>
 
       {/* Profile Header & Rescuer Honors Card */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xs border border-gray-200 dark:border-gray-700 p-6 sm:p-8 mb-8">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
           {/* Avatar with Badge ring */}
           <div className="relative">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700 border-4 border-indigo-100 dark:border-indigo-900 shadow-sm flex items-center justify-center text-3xl font-bold">
+            <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700 border-4 border-indigo-100 dark:border-indigo-900 shadow-xs flex items-center justify-center text-3xl font-bold">
               {profile.avatar_url ? (
                 <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
@@ -265,30 +258,31 @@ export default function UserProfile() {
             </div>
             <div
               className="absolute -bottom-2 -right-2 text-xl bg-white dark:bg-gray-800 p-1 rounded-full shadow-md border"
-              title={userBadge.name}
+              title={userBadge.description}
             >
               {userBadge.icon}
             </div>
           </div>
 
           {/* Details */}
-          <div className="text-center sm:text-right flex-1">
+          <div className="text-center sm:text-left flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h1 className="text-2xl font-black text-gray-900 dark:text-white">
                   {profile.username || profile.email?.split('@')[0]}
                 </h1>
                 <p className="text-xs text-gray-400">
-                  انضم في {new Date(profile.created_at).toLocaleDateString('ar-EG')}
+                  Joined on {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </p>
               </div>
 
               {/* Badge Pill */}
               <div
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold ${userBadge.bgColor} ${userBadge.textColor} border ${userBadge.border}`}
+                title={userBadge.description}
               >
                 <span>{userBadge.icon}</span>
-                <span>{userBadge.name}</span>
+                <span>{userBadge.nameEn || userBadge.name}</span>
               </div>
             </div>
 
@@ -305,7 +299,7 @@ export default function UserProfile() {
                   ⭐ {userKarma}
                 </p>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 font-bold">
-                  نقاط الكارما (Rescue Karma)
+                  Rescue Karma
                 </p>
               </div>
 
@@ -314,7 +308,7 @@ export default function UserProfile() {
                   ✓ {resolvedRescuesCount}
                 </p>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 font-bold">
-                  حالات تم إنقاذها
+                  Cases Rescued
                 </p>
               </div>
 
@@ -323,7 +317,7 @@ export default function UserProfile() {
                   {userPosts.length}
                 </p>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 font-bold">
-                  إجمالي المنشورات
+                  Total Posts
                 </p>
               </div>
             </div>
@@ -337,6 +331,7 @@ export default function UserProfile() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 dark:bg-blue-900/30"
+                    aria-label="Facebook Profile"
                   >
                     <Facebook className="w-4 h-4" />
                   </a>
@@ -347,6 +342,7 @@ export default function UserProfile() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 bg-pink-50 text-pink-600 rounded-full hover:bg-pink-100 dark:bg-pink-900/30"
+                    aria-label="Instagram Profile"
                   >
                     <Instagram className="w-4 h-4" />
                   </a>
@@ -357,6 +353,7 @@ export default function UserProfile() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 dark:bg-gray-700"
+                    aria-label="Twitter Profile"
                   >
                     <Twitter className="w-4 h-4" />
                   </a>
@@ -370,7 +367,7 @@ export default function UserProfile() {
       {/* User's Posts Feed */}
       <div>
         <h2 className="text-lg font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span>منشورات ومساهمات المنقذ</span>
+          <span>Rescuer Posts & Contributions</span>
           <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2.5 py-0.5 rounded-full">
             {userPosts.length}
           </span>
@@ -378,7 +375,7 @@ export default function UserProfile() {
 
         {userPosts.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center text-xs text-gray-500">
-            لم يقم هذا المستخدم بنشر أي بلاغات أو قصص حتى الآن.
+            This user has not posted any reports or stories yet.
           </div>
         ) : (
           <div className="space-y-4">
@@ -402,6 +399,7 @@ export default function UserProfile() {
           <button
             onClick={() => setSelectedImages(null)}
             className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/50 p-2.5 rounded-full"
+            aria-label="Close image modal"
           >
             <X className="h-6 w-6" />
           </button>

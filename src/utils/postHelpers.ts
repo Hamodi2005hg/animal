@@ -12,73 +12,73 @@ export const SUBREDDITS: {
   {
     id: 'r/RescueEmergency',
     title: 'Emergency & Rescue',
-    titleAr: '🚨 طوارئ وإنقاذ',
+    titleAr: 'Emergency & Rescue',
     icon: '🚨',
     color: 'bg-red-500 text-white',
-    description: 'بلاغات جغرافية سريعة لحالات الحيوانات المصابة أو في خطر عاجل.',
+    description: 'Urgent geolocation reports for injured, trapped, or endangered stray animals.',
     category: 'rescue'
   },
   {
     id: 'r/SuccessStories',
     title: 'Success Stories & Adoption',
-    titleAr: '💖 قصص نجاح وتبني',
+    titleAr: 'Success Stories & Adoption',
     icon: '💖',
     color: 'bg-pink-500 text-white',
-    description: 'صور وتحولات الحيوانات بعد الإنقاذ والتبني (قبل وبعد Before & After).',
+    description: 'Inspiring transformation stories and adoption journeys (Before & After photos).',
     category: 'success'
   },
   {
     id: 'r/Cats',
     title: 'Cats Community',
-    titleAr: '🐱 مجتمع القطط',
+    titleAr: 'Cats Community',
     icon: '🐱',
     color: 'bg-amber-500 text-white',
-    description: 'تربية، تغذية، تجارب يومية، وصور قطط لطيفة من مجتمع المربين.',
+    description: 'Cat care, feeding tips, daily stories, and cute moments from feline lovers.',
     category: 'pets'
   },
   {
     id: 'r/Dogs',
     title: 'Dogs Community',
-    titleAr: '🐶 مجتمع الكلاب',
+    titleAr: 'Dogs Community',
     icon: '🐶',
     color: 'bg-emerald-500 text-white',
-    description: 'تدريب، سلوك، صحة، ومواقف يومية لأصحاب الكلاب ومحبيها.',
+    description: 'Dog training, behavior, canine health, and adventures with our best friends.',
     category: 'pets'
   },
   {
     id: 'r/Birds',
     title: 'Birds Care',
-    titleAr: '🦜 العناية بالطيور',
+    titleAr: 'Birds Care',
     icon: '🦜',
     color: 'bg-cyan-500 text-white',
-    description: 'تغذية الطيور، إسعاف الطيور المصابة في الشوارع، وتربية آمنة.',
+    description: 'Feeding, rehabilitating wild street birds, safe breeding, and avian health.',
     category: 'pets'
   },
   {
     id: 'r/VetAdvice',
     title: 'Free Vet Advice',
-    titleAr: '🩺 استشارات بيطرية',
+    titleAr: 'Free Vet Advice',
     icon: '🩺',
     color: 'bg-blue-600 text-white',
-    description: 'نصائح طبية أولية، تجارب علاجية واستشارات مجانية من أطباء ومتطوعين.',
+    description: 'Initial medical guidance, triage tips, and free consultations from vets and volunteers.',
     category: 'pets'
   },
   {
     id: 'r/FunnyPets',
-    title: 'Funny Pets & Daily Moments',
-    titleAr: '🐾 يوميات ومواقف طريفة',
+    title: 'Funny Pets & Memes',
+    titleAr: 'Funny Pets & Memes',
     icon: '🐾',
     color: 'bg-purple-500 text-white',
-    description: 'مواقف مرحة، ميمز، ولقطات عفوية للحيوانات الأليفة ترسم الابتسامة.',
+    description: 'Playful moments, pet memes, and heartwarming spontaneous photos that make you smile.',
     category: 'pets'
   },
   {
     id: 'r/PetMarketplace',
     title: 'Community Aid & Marketplace',
-    titleAr: '🍲 سوق المساعدات والخدمات',
+    titleAr: 'Community Aid & Marketplace',
     icon: '🍲',
     color: 'bg-orange-500 text-white',
-    description: 'تبرع ببقايا طعام صالحة من المطاعم/الأفراد، كشوفات مجانية، ومستلزمات.',
+    description: 'Surplus food donations from restaurants/individuals, free vet checkups, supplies & transport.',
     category: 'marketplace'
   }
 ];
@@ -88,11 +88,11 @@ export const MARKETPLACE_CATEGORIES: {
   label: string;
   icon: string;
 }[] = [
-  { id: 'food_donation', label: 'تبرع ببقايا طعام نظيفة (مطاعم وأفراد)', icon: '🍲' },
-  { id: 'vet_clinic', label: 'كشف/تطعيم مجاني أو مخفض (عيادات)', icon: '🩺' },
-  { id: 'supplies', label: 'أدوية ومستلزمات وأقفاص مجانية', icon: '💊' },
-  { id: 'transport', label: 'تطوع بالنقل والإسعاف', icon: '🚗' },
-  { id: 'other', label: 'مساعدات أخرى', icon: '🤝' }
+  { id: 'food_donation', label: 'Surplus Clean Food Donations', icon: '🍲' },
+  { id: 'vet_clinic', label: 'Free or Discounted Vet Care', icon: '🩺' },
+  { id: 'supplies', label: 'Medicines, Supplies & Cages', icon: '💊' },
+  { id: 'transport', label: 'Volunteer Transport & Ambulance', icon: '🚗' },
+  { id: 'other', label: 'Other Mutual Aid', icon: '🤝' }
 ];
 
 /**
@@ -120,96 +120,97 @@ export function extractPostMetadata(raw: any): AnimalSOS {
       if (!raw.before_after_image_url && parsed.before_after_image_url) before_after_image_url = parsed.before_after_image_url;
       if (!raw.title && parsed.title) title = parsed.title;
       if (!raw.marketplace_type && parsed.marketplace_type) marketplace_type = parsed.marketplace_type;
-      
-      // Clean visible description
+
+      // Clean metadata prefix from description for display
       description = description.replace(metaRegex, '');
     } catch {
-      // Ignore parse failure
+      // ignore parse errors
     }
   }
 
-  // Calculate vote_score
-  const upvotes = raw.upvotes || 0;
-  const downvotes = raw.downvotes || 0;
-  const vote_score = upvotes - downvotes;
-
   return {
     ...raw,
-    description,
+    title: title || raw.title,
     subreddit,
     urgency,
     is_anonymous,
     before_after_image_url,
-    title,
     marketplace_type,
-    upvotes,
-    downvotes,
-    vote_score
+    description
   };
 }
 
 /**
- * Packs post data into a payload that includes columns AND a fallback META header
- * so it works whether or not the SQL migration has been applied.
+ * Prepares payload for creating or updating post.
  */
 export function preparePostPayload(data: {
-  user_id: string;
-  animal_type: string;
-  country: string;
-  region: string;
-  area: string;
-  description: string;
-  image_url: string;
-  status: 'open' | 'resolved';
-  title?: string;
+  title: string;
   subreddit: SubredditType;
   urgency: UrgencyLevel;
-  is_anonymous: boolean;
-  before_after_image_url?: string;
-  marketplace_type?: MarketplaceType;
+  animalType: string;
+  country: string;
+  region: string;
+  area?: string;
+  description: string;
+  imageUrls: string[];
+  beforeAfterImageUrl?: string;
+  isAnonymous: boolean;
+  marketplaceType?: MarketplaceType;
+  userId: string;
 }) {
-  const metaObject = {
+  return {
+    user_id: data.userId,
     title: data.title,
     subreddit: data.subreddit,
     urgency: data.urgency,
-    is_anonymous: data.is_anonymous,
-    before_after_image_url: data.before_after_image_url,
-    marketplace_type: data.marketplace_type
-  };
-
-  const encodedDescription = `[META:${JSON.stringify(metaObject)}] ${data.description}`;
-
-  // Complete payload with both direct fields and embedded meta in description
-  return {
-    user_id: data.user_id,
-    animal_type: data.animal_type,
+    animal_type: data.animalType,
     country: data.country,
     region: data.region,
-    area: data.area,
-    description: encodedDescription,
-    image_url: data.image_url,
-    status: data.status,
-    title: data.title,
-    subreddit: data.subreddit,
-    urgency: data.urgency,
-    is_anonymous: data.is_anonymous,
-    before_after_image_url: data.before_after_image_url,
-    marketplace_type: data.marketplace_type
+    area: data.area || null,
+    description: data.description,
+    image_url: data.imageUrls.join(','),
+    before_after_image_url: data.beforeAfterImageUrl || null,
+    is_anonymous: data.isAnonymous,
+    marketplace_type: data.marketplaceType || null,
+    status: 'open'
   };
 }
 
 /**
- * Payload without new columns for graceful retry if Supabase returns 42703 (undefined column)
+ * Fallback payload for legacy schema where new columns don't exist yet.
  */
-export function prepareFallbackPostPayload(data: ReturnType<typeof preparePostPayload>) {
+export function prepareFallbackPostPayload(data: {
+  title: string;
+  subreddit: SubredditType;
+  urgency: UrgencyLevel;
+  animalType: string;
+  country: string;
+  region: string;
+  area?: string;
+  description: string;
+  imageUrls: string[];
+  beforeAfterImageUrl?: string;
+  isAnonymous: boolean;
+  marketplaceType?: MarketplaceType;
+  userId: string;
+}) {
+  const meta = JSON.stringify({
+    title: data.title,
+    subreddit: data.subreddit,
+    urgency: data.urgency,
+    is_anonymous: data.isAnonymous,
+    before_after_image_url: data.beforeAfterImageUrl,
+    marketplace_type: data.marketplaceType
+  });
+
   return {
-    user_id: data.user_id,
-    animal_type: data.animal_type,
+    user_id: data.userId,
+    animal_type: data.animalType,
     country: data.country,
     region: data.region,
-    area: data.area,
-    description: data.description, // Contains [META:...]
-    image_url: data.image_url,
-    status: data.status
+    area: data.area || null,
+    description: `[META:${meta}]\n${data.description}`,
+    image_url: data.imageUrls.join(','),
+    status: 'open'
   };
 }

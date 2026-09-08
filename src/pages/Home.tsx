@@ -2,14 +2,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { AnimalSOS, SubredditType } from '../types';
 import { useAuth } from '../components/AuthProvider';
-import { ChevronRight, ChevronLeft, X, AlertCircle, Heart, PlusCircle, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, AlertCircle, Heart, PlusCircle } from 'lucide-react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import SubredditTabs from '../components/SubredditTabs';
 import FeedSortBar, { SortMode } from '../components/FeedSortBar';
 import CommunitySidebar from '../components/CommunitySidebar';
 import PostCard from '../components/PostCard';
 import { extractPostMetadata } from '../utils/postHelpers';
-import { calculateUserKarma } from '../utils/karmaHelpers';
 
 export default function Home() {
   const [sosList, setSosList] = useState<AnimalSOS[]>([]);
@@ -31,7 +30,7 @@ export default function Home() {
   const [selectedImages, setSelectedImages] = useState<string[] | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const animalTypeFilter = searchParams.get('type');
 
   const { user } = useAuth();
@@ -158,24 +157,26 @@ export default function Home() {
     // 1. Subreddit / Category Filter
     if (selectedSubreddit !== 'all') {
       result = result.filter((p) => p.subreddit === selectedSubreddit);
-    } else if (activeCategory === 'rescue') {
-      result = result.filter((p) => p.subreddit === 'r/RescueEmergency');
-    } else if (activeCategory === 'success') {
-      result = result.filter((p) => p.subreddit === 'r/SuccessStories');
-    } else if (activeCategory === 'pets') {
-      result = result.filter(
-        (p) =>
-          p.subreddit === 'r/Cats' ||
-          p.subreddit === 'r/Dogs' ||
-          p.subreddit === 'r/Birds' ||
-          p.subreddit === 'r/VetAdvice' ||
-          p.subreddit === 'r/FunnyPets'
-      );
-    } else if (activeCategory === 'marketplace') {
-      result = result.filter((p) => p.subreddit === 'r/PetMarketplace');
+    } else if (activeCategory !== 'all') {
+      if (activeCategory === 'rescue') {
+        result = result.filter((p) => p.subreddit === 'r/RescueEmergency');
+      } else if (activeCategory === 'success') {
+        result = result.filter((p) => p.subreddit === 'r/SuccessStories');
+      } else if (activeCategory === 'marketplace') {
+        result = result.filter((p) => p.subreddit === 'r/PetMarketplace');
+      } else if (activeCategory === 'pets') {
+        result = result.filter(
+          (p) =>
+            p.subreddit === 'r/Cats' ||
+            p.subreddit === 'r/Dogs' ||
+            p.subreddit === 'r/Birds' ||
+            p.subreddit === 'r/VetAdvice' ||
+            p.subreddit === 'r/FunnyPets'
+        );
+      }
     }
 
-    // 2. Animal Type Filter (from search bar)
+    // 2. Animal Filter from Navbar search
     if (animalTypeFilter) {
       result = result.filter(
         (p) => p.animal_type?.toLowerCase() === animalTypeFilter.toLowerCase()
@@ -188,38 +189,26 @@ export default function Home() {
         (p) => p.country?.toLowerCase() === userCountry.toLowerCase()
       );
     } else if (selectedCountry) {
-      result = result.filter(
-        (p) => p.country?.toLowerCase() === selectedCountry.toLowerCase()
-      );
+      result = result.filter((p) => p.country === selectedCountry);
     }
 
-    // 4. Reddit-style Sorting Modes
+    // 4. Reddit Sort Logic
     if (sortMode === 'critical') {
-      // Emergency priority: Critical posts rise first, then high urgency, then net upvotes
       result.sort((a, b) => {
-        const urgWeight = (urg?: string) =>
-          urg === 'critical' ? 1000 : urg === 'high' ? 500 : 100;
-        const scoreA = urgWeight(a.urgency) + (a.vote_score || 0);
-        const scoreB = urgWeight(b.urgency) + (b.vote_score || 0);
-        return scoreB - scoreA;
+        const order: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
+        const diff = (order[b.urgency || 'medium'] || 0) - (order[a.urgency || 'medium'] || 0);
+        if (diff !== 0) return diff;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     } else if (sortMode === 'hot') {
-      // Hot Algorithm: Score + recency decay + boost for critical emergency
-      const now = Date.now();
       result.sort((a, b) => {
-        const ageHoursA = Math.max(1, (now - new Date(a.created_at).getTime()) / 3600000);
-        const ageHoursB = Math.max(1, (now - new Date(b.created_at).getTime()) / 3600000);
-        const boostA = a.urgency === 'critical' ? 50 : 0;
-        const boostB = b.urgency === 'critical' ? 50 : 0;
-        const hotA = ((a.vote_score || 0) + 10 + boostA) / Math.pow(ageHoursA + 2, 1.2);
-        const hotB = ((b.vote_score || 0) + 10 + boostB) / Math.pow(ageHoursB + 2, 1.2);
-        return hotB - hotA;
+        const scoreA = (a.upvotes || 0) * 2 - (a.downvotes || 0) + (a.urgency === 'critical' ? 10 : 0);
+        const scoreB = (b.upvotes || 0) * 2 - (b.downvotes || 0) + (b.urgency === 'critical' ? 10 : 0);
+        return scoreB - scoreA;
       });
     } else if (sortMode === 'top') {
-      // Highest net upvotes
-      result.sort((a, b) => (b.vote_score || 0) - (a.vote_score || 0));
+      result.sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
     } else if (sortMode === 'new') {
-      // Pure chronological
       result.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
@@ -255,10 +244,10 @@ export default function Home() {
         setUserRegion(data.principalSubdivision || '');
         setIsNearMeActive(true);
       } else {
-        alert('تعذر تحديد دولتك تلقائياً، يمكنك اختيار دولتك من القائمة يدوياً.');
+        alert('Could not automatically determine country. Please select your country from the list.');
       }
     } catch {
-      alert('تعذر الوصول لخدمة تحديد الموقع، يرجى فحص الاتصال.');
+      alert('Location service unavailable. Please check your network or select country manually.');
     } finally {
       setIsNearMeLoading(false);
     }
@@ -367,7 +356,7 @@ export default function Home() {
   };
 
   const handleDelete = async (sosId: string) => {
-    if (!window.confirm('هل أنت متأكد من رغبتك في حذف هذا المنشور؟')) return;
+    if (!window.confirm('Are you sure you want to delete this post?')) return;
     if (!supabase || !user) return;
 
     const { error } = await supabase
@@ -379,7 +368,7 @@ export default function Home() {
     if (!error) {
       setSosList((prev) => prev.filter((s) => s.id !== sosId));
     } else {
-      alert('تعذر حذف المنشور.');
+      alert('Failed to delete post.');
     }
   };
 
@@ -394,7 +383,7 @@ export default function Home() {
     return (
       <div className="flex flex-col justify-center items-center h-80 space-y-3">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
-        <p className="text-xs text-gray-500">جاري تحميل مجتمعات الحيوانات...</p>
+        <p className="text-xs text-gray-500">Loading Pet Reddit communities...</p>
       </div>
     );
   }
@@ -404,10 +393,10 @@ export default function Home() {
       <div className="text-center py-16">
         <AlertCircle className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-          قاعدة البيانات غير مهيأة
+          Database Connection Required
         </h3>
         <p className="mt-1 text-sm text-gray-500">
-          يرجى ربط Supabase لعرض والمشاركة في مجتمعات الحيوانات.
+          Please configure Supabase to view and participate in pet communities.
         </p>
       </div>
     );
@@ -415,7 +404,7 @@ export default function Home() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* 4 Main Community Tabs */}
+      {/* 5 Main Community Tabs */}
       <SubredditTabs
         selectedSubreddit={selectedSubreddit}
         onSelectSubreddit={(sub) => setSelectedSubreddit(sub)}
@@ -445,17 +434,17 @@ export default function Home() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center shadow-xs">
               <Heart className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
               <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                لا توجد منشورات في هذا المجتمع حالياً
+                No posts found in this community yet
               </h3>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-5">
-                كن أول من يشارك بلاغاً، قصة تبني ملهمة، أو يقدم مساعدة لحيوانات منطقتك!
+                Be the first to report a stray in need, share a heartwarming adoption story, or offer aid!
               </p>
               <Link
                 to="/create-sos"
-                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-5 rounded-xl shadow-sm transition"
+                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-5 rounded-xl shadow-xs transition"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>انشر أول منشور الآن</span>
+                <span>Create the First Post</span>
               </Link>
             </div>
           ) : (
@@ -500,6 +489,7 @@ export default function Home() {
           <button
             onClick={() => setSelectedImages(null)}
             className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/50 p-2.5 rounded-full transition"
+            aria-label="Close image viewer"
           >
             <X className="h-6 w-6" />
           </button>
@@ -520,9 +510,10 @@ export default function Home() {
                       prev === 0 ? selectedImages.length - 1 : prev - 1
                     );
                   }}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/60 text-white p-3 rounded-full hover:bg-black/80 transition"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/60 text-white p-3 rounded-full hover:bg-black/80 transition"
+                  aria-label="Previous image"
                 >
-                  <ChevronRight className="h-6 w-6" />
+                  <ChevronLeft className="h-6 w-6" />
                 </button>
                 <button
                   onClick={(e) => {
@@ -531,9 +522,10 @@ export default function Home() {
                       prev === selectedImages.length - 1 ? 0 : prev + 1
                     );
                   }}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/60 text-white p-3 rounded-full hover:bg-black/80 transition"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/60 text-white p-3 rounded-full hover:bg-black/80 transition"
+                  aria-label="Next image"
                 >
-                  <ChevronLeft className="h-6 w-6" />
+                  <ChevronRight className="h-6 w-6" />
                 </button>
 
                 <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex gap-2">

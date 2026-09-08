@@ -12,40 +12,40 @@ export interface UserBadge {
 
 export const RESCUE_BADGES: Record<string, UserBadge> = {
   legendary: {
-    name: '🌟 بطل الإنقاذ الأسطوري',
+    name: '🌟 Legendary Hero',
     nameEn: 'Legendary Hero',
     icon: '🌟',
     bgColor: 'bg-amber-50 dark:bg-amber-950/40',
     textColor: 'text-amber-700 dark:text-amber-300',
     border: 'border-amber-400 dark:border-amber-600',
-    description: 'أنقذ وساهم في حماية عشرات الحيوانات مع أعلى رصيد كارما مجتمعي (+500).'
+    description: 'Rescued dozens of animals with outstanding community karma (+500).'
   },
   medic: {
-    name: '🩺 مسعف الميدان',
+    name: '🩺 Field Medic',
     nameEn: 'Field Medic',
     icon: '🩺',
     bgColor: 'bg-blue-50 dark:bg-blue-950/40',
     textColor: 'text-blue-700 dark:text-blue-300',
     border: 'border-blue-400 dark:border-blue-600',
-    description: 'مستجيب سريع للبلاغات الطارئة وتقديم الإسعافات والمشورة (200 - 499 كارما).'
+    description: 'Rapid responder for emergency cases, medical aid & advice (200 - 499 karma).'
   },
   guardian: {
-    name: '🛡️ حارس الأرواح',
+    name: '🛡️ Life Shield',
     nameEn: 'Life Shield',
     icon: '🛡️',
     bgColor: 'bg-emerald-50 dark:bg-emerald-950/40',
     textColor: 'text-emerald-700 dark:text-emerald-300',
     border: 'border-emerald-400 dark:border-emerald-600',
-    description: 'عضو فاعل يساهم في رصد وإطعام الحيوانات الضالة (50 - 199 كارما).'
+    description: 'Active contributor feeding, reporting, and sheltering strays (50 - 199 karma).'
   },
   junior: {
-    name: '🐾 المنقذ المبتدئ',
+    name: '🐾 Junior Guardian',
     nameEn: 'Junior Guardian',
     icon: '🐾',
     bgColor: 'bg-indigo-50 dark:bg-indigo-950/40',
     textColor: 'text-indigo-700 dark:text-indigo-300',
     border: 'border-indigo-300 dark:border-indigo-700',
-    description: 'بداية مشرفة في مجتمع حماية الحيوانات الأليفة والضالة (0 - 49 كارما).'
+    description: 'An inspiring beginning in pet rescue and animal protection (0 - 49 karma).'
   }
 };
 
@@ -98,8 +98,6 @@ export function getProfileBadge(profile?: Profile, authorPosts?: AnimalSOS[]): {
     ? calculateUserKarma(authorPosts)
     : 25;
 
-  return {
-    badge: getBadgeByKarma(karma),
-    karma
-  };
+  const badge = getBadgeByKarma(karma);
+  return { badge, karma };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
 import { Message, Profile, AnimalSOS } from '../types';
@@ -342,7 +342,7 @@ export default function Messages() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <MessageSquare className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-              Conversations (المحادثات والرسائل)
+              Conversations & Messages
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               All messages received and sent regarding animal rescue calls
@@ -360,7 +360,7 @@ export default function Messages() {
               <MessageSquare className="h-8 w-8" />
             </div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-              No conversations yet (لا توجد محادثات بعد)
+              No conversations yet
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
               When another user contacts you regarding an SOS call, or when you click "Message" on an animal SOS report, your chats will appear here.
@@ -369,7 +369,7 @@ export default function Messages() {
               to="/"
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition shadow-sm"
             >
-              Explore SOS Calls (تصفح نداءات الإنقاذ)
+              Explore Rescue Posts
             </Link>
           </div>
         ) : (
