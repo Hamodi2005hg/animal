@@ -144,9 +144,15 @@ export default function Home() {
       navigate('/auth');
       return;
     }
-    // Optimistic UI could be added here, but since SQL tables might not exist, 
-    // let's just make the request and alert if error
     if (!supabase) return;
+    
+    // Optimistic UI update
+    setSosList(prev => prev.map(sos => {
+      if (sos.id === sosId) {
+        return { ...sos, vote_score: (sos.vote_score || 0) + value };
+      }
+      return sos;
+    }));
     
     try {
       const { error } = await supabase
@@ -159,15 +165,19 @@ export default function Home() {
         
       if (error) {
         if (error.code === '42P01') {
-          alert('Voting system is not initialized yet. Please run the provided SQL script in Supabase.');
+          console.error('Voting system is not initialized yet. Please run the provided SQL script in Supabase.');
+          // Revert optimistic update on missing table
+          setSosList(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
         } else {
           console.error(error);
+          // Revert on other errors
+          setSosList(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
         }
-      } else {
-        alert('Vote recorded! (UI will update upon refresh once full voting logic is synced)');
       }
     } catch(err) {
       console.error(err);
+      // Revert optimistic update
+      setSosList(prev => prev.map(sos => sos.id === sosId ? { ...sos, vote_score: (sos.vote_score || 0) - value } : sos));
     }
   };
 
@@ -224,104 +234,94 @@ export default function Home() {
       </div>
 
       {filteredList.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center max-w-2xl mx-auto">
           <Heart className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900">No active calls found</h3>
           <p className="mt-1 text-gray-500">There are currently no stray animal reports matching your criteria.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="flex flex-col gap-6 max-w-2xl mx-auto">
           {filteredList.map((sos) => {
             const images = sos.image_url ? sos.image_url.split(',') : [];
             const displayImage = images.length > 0 ? images[0] : null;
 
             return (
-              <div key={sos.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition-all duration-300">
-                {displayImage ? (
-                  <div 
-                    className="relative w-full h-72 bg-gray-200 cursor-pointer group rounded-t-2xl overflow-hidden"
-                    onClick={() => openImageModal(sos.image_url)}
-                  >
-                    <img 
-                      src={displayImage} 
-                      alt="Stray Animal" 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    {images.length > 1 && (
-                      <div className="absolute bottom-3 right-3 bg-black/60 text-white text-xs font-bold px-2.5 py-1 rounded-md backdrop-blur-sm">
-                        + {images.length - 1} more
-                      </div>
-                    )}
-                    {sos.animal_type && (
-                      <div className="absolute top-3 left-3 bg-white/90 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm shadow-sm">
-                        {sos.animal_type}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full h-72 bg-gray-100 flex items-center justify-center rounded-t-2xl relative">
-                    <AlertCircle className="h-12 w-12 text-gray-300" />
-                    {sos.animal_type && (
-                      <div className="absolute top-3 left-3 bg-white/90 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
-                        {sos.animal_type}
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div key={sos.id} className="bg-white rounded-md shadow-sm border border-gray-300 flex hover:border-gray-400 transition-colors">
                 
-                <div className="p-0 flex-1 flex flex-col">
-                  <div className="flex">
+                {/* Reddit style voting sidebar */}
+                <div className="w-10 bg-gray-50 flex flex-col items-center py-2 rounded-l-md border-r border-gray-100">
+                  <button onClick={() => handleVote(sos.id, 1)} className="p-1 text-gray-400 hover:text-orange-500 hover:bg-gray-200 rounded">
+                    <ArrowUp className="h-5 w-5" />
+                  </button>
+                  <span className="font-bold text-gray-900 text-xs my-1">
+                    {sos.vote_score || 0}
+                  </span>
+                  <button onClick={() => handleVote(sos.id, -1)} className="p-1 text-gray-400 hover:text-indigo-500 hover:bg-gray-200 rounded">
+                    <ArrowDown className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                {/* Right Content */}
+                <div className="p-3 pt-3 flex-1 flex flex-col">
+                  {/* Header */}
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-2 flex-wrap">
+                     <span className="font-bold text-gray-900">{sos.animal_type ? `r/${sos.animal_type.toLowerCase()}` : 'r/animal'}</span>
+                     <span>•</span>
+                     <span>Posted by u/{sos.profiles?.email?.split('@')[0] || 'user'}</span>
+                     <span>•</span>
+                     <span>{new Date(sos.created_at).toLocaleDateString()}</span>
+                     <span>•</span>
+                     <MapPin className="h-3 w-3 ml-1" />
+                     <span>{sos.area ? `${sos.area}, ` : ''}{sos.region}, {sos.country}</span>
+                  </div>
+                  
+                  {/* Content */}
+                  <p className="text-gray-900 text-sm mb-3">
+                    {sos.description}
+                  </p>
+
+                  {/* Media */}
+                  {displayImage ? (
+                    <div 
+                      className="relative w-full max-h-[500px] bg-gray-100 rounded-md overflow-hidden cursor-pointer mb-2 flex items-center justify-center"
+                      onClick={() => openImageModal(sos.image_url)}
+                    >
+                      <img 
+                        src={displayImage} 
+                        alt="Stray Animal" 
+                        className="max-h-[500px] object-contain"
+                      />
+                      {images.length > 1 && (
+                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-full backdrop-blur-sm">
+                          1 / {images.length}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-full h-32 bg-gray-100 rounded-md mb-2 flex items-center justify-center border border-gray-200">
+                      <AlertCircle className="h-8 w-8 text-gray-300" />
+                    </div>
+                  )}
+
+                  {/* Footer Actions */}
+                  <div className="flex items-center gap-2 mt-1 text-gray-500 font-bold text-xs">
+                    <button 
+                      onClick={() => navigate(`/sos/${sos.id}`)}
+                      className="flex items-center gap-1.5 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      Comments
+                    </button>
                     
-                    {/* Reddit style voting sidebar */}
-                    <div className="w-12 bg-gray-50 flex flex-col items-center py-4 border-r border-gray-100 rounded-bl-2xl">
-                      <button onClick={() => handleVote(sos.id, 1)} className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded">
-                        <ArrowUp className="h-6 w-6" />
+                    {user?.id !== sos.user_id && (
+                      <button
+                        onClick={() => handleRespond(sos)}
+                        className="flex items-center gap-1.5 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors text-indigo-600"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Direct Message
                       </button>
-                      <span className="font-bold text-gray-700 my-1 text-sm">
-                        {sos.vote_score || 0}
-                      </span>
-                      <button onClick={() => handleVote(sos.id, -1)} className="p-1 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded">
-                        <ArrowDown className="h-6 w-6" />
-                      </button>
-                    </div>
-
-                    <div className="p-5 flex-1 flex flex-col">
-                      <div className="flex items-center gap-1.5 text-sm text-gray-600 mb-3 font-medium">
-                        <MapPin className="h-4 w-4 text-indigo-500" />
-                        <span>{sos.area ? `${sos.area}, ` : ''}{sos.region}, {sos.country}</span>
-                      </div>
-                      
-                      <p className="text-gray-800 mb-6 flex-1 text-base leading-relaxed line-clamp-3">
-                        {sos.description}
-                      </p>
-                      
-                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
-                          <Clock className="h-4 w-4" />
-                          <span>{new Date(sos.created_at).toLocaleDateString()}</span>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                           <button
-                            onClick={() => navigate(`/sos/${sos.id}`)}
-                            className="flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100 transition"
-                           >
-                             <MessageCircle className="h-4 w-4" />
-                             Comments
-                           </button>
-                           
-                           {user?.id !== sos.user_id && (
-                            <button
-                              onClick={() => handleRespond(sos)}
-                              className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm transition"
-                            >
-                              Respond
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
+                    )}
                   </div>
                 </div>
               </div>
