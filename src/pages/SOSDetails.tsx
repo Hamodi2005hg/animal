@@ -79,21 +79,29 @@ export default function SOSDetails() {
       } else {
          // Add Notification
          if (sos && sos.user_id !== user.id && !replyingTo) {
-           await supabase.from('notifications').insert({
-             user_id: sos.user_id,
-             actor_id: user.id,
-             type: 'comment',
-             post_id: sos.id
-           }).catch(() => {});
+           try {
+             await supabase.from('notifications').insert({
+               user_id: sos.user_id,
+               actor_id: user.id,
+               type: 'comment',
+               post_id: sos.id
+             });
+           } catch (e) {
+             console.warn('Could not send notification:', e);
+           }
          } else if (replyingTo) {
            const parentComment = comments.find(c => c.id === replyingTo);
            if (parentComment && parentComment.user_id !== user.id) {
-             await supabase.from('notifications').insert({
-               user_id: parentComment.user_id,
-               actor_id: user.id,
-               type: 'reply',
-               post_id: sos?.id || id
-             }).catch(() => {});
+             try {
+               await supabase.from('notifications').insert({
+                 user_id: parentComment.user_id,
+                 actor_id: user.id,
+                 type: 'reply',
+                 post_id: sos?.id || id
+               });
+             } catch (e) {
+               console.warn('Could not send notification:', e);
+             }
            }
          }
 

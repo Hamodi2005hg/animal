@@ -134,12 +134,16 @@ export default function UserProfile() {
         }
 
         if (sos.user_id !== user.id) {
-          await supabase.from('notifications').insert({
-            user_id: sos.user_id,
-            actor_id: user.id,
-            type: 'vote',
-            post_id: sos.id
-          }).catch(() => {});
+          try {
+            await supabase.from('notifications').insert({
+              user_id: sos.user_id,
+              actor_id: user.id,
+              type: 'vote',
+              post_id: sos.id
+            });
+          } catch (e) {
+            console.warn('Could not send notification:', e);
+          }
         }
       }
     } catch(err) {

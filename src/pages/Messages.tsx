@@ -309,18 +309,19 @@ export default function Messages() {
 
       // Create notification for receiver
       if (otherUserId !== user.id) {
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: otherUserId,
-            actor_id: user.id,
-            type: 'message',
-            post_id: sosId,
-            is_read: false
-          })
-          .catch(notifErr => {
-            console.warn('Could not create notification:', notifErr);
-          });
+        try {
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: otherUserId,
+              actor_id: user.id,
+              type: 'message',
+              post_id: sosId,
+              is_read: false
+            });
+        } catch (notifErr) {
+          console.warn('Could not create notification:', notifErr);
+        }
       }
     } catch (err: any) {
       console.error('Error in handleSendMessage:', err);
