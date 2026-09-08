@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { fetchApi } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Upload, AlertCircle } from 'lucide-react';
 
@@ -23,7 +23,7 @@ export default function CreateSOS() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !supabase) return;
     
     setLoading(true);
     setError(null);
@@ -32,26 +32,37 @@ export default function CreateSOS() {
       let image_url = '';
 
       if (imageFile) {
-        const formData = new FormData();
-        formData.append('file', imageFile);
-        
-        const uploadRes = await fetchApi('/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        image_url = uploadRes.url;
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${user.id}/${fileName}`;
+
+        const { error: uploadError, data } = await supabase.storage
+          .from('animal-images')
+          .upload(filePath, imageFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('animal-images')
+          .getPublicUrl(filePath);
+          
+        image_url = publicUrlData.publicUrl;
       }
 
-      await fetchApi('/sos', {
-        method: 'POST',
-        body: JSON.stringify({
-          country,
-          region,
-          description,
-          image_url
-        })
-      });
+      const { error: insertError } = await supabase
+        .from('animal_sos')
+        .insert([
+          {
+            user_id: user.id,
+            country,
+            region,
+            description,
+            image_url,
+            status: 'open'
+          }
+        ]);
+
+      if (insertError) throw insertError;
 
       navigate('/');
     } catch (err: any) {
@@ -140,7 +151,7 @@ export default function CreateSOS() {
                 <div className="flex text-sm text-gray-600 justify-center">
                   <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
                     <span>Upload a file</span>
-                    <input id="file-upload" type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                    <input id="file-upload" name="file-upload" type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
                   </label>
                 </div>
                 <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>

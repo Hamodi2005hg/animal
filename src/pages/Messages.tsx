@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { fetchApi } from '../lib/api';
-import { Message, AnimalSOS } from '../types';
+import { Message, Profile, AnimalSOS } from '../types';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft } from 'lucide-react';
 
@@ -14,7 +14,7 @@ export default function Messages() {
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [otherUserEmail, setOtherUserEmail] = useState('');
+  const [otherUser, setOtherUser] = useState<Profile | null>(null);
   const [sosDetails, setSosDetails] = useState<AnimalSOS | null>(null);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -26,8 +26,7 @@ export default function Messages() {
     }
     if (otherUserId && sosId) {
       fetchChatData();
-      const interval = setInterval(fetchMessages, 3000); // Poll for new messages every 3s
-      return () => clearInterval(interval);
+      subscribeToMessages();
     } else {
       setLoading(false);
     }
@@ -38,50 +37,75 @@ export default function Messages() {
   }, [messages]);
 
   const fetchChatData = async () => {
-    try {
-      const [userRes, sosRes] = await Promise.all([
-        fetchApi(`/users/${otherUserId}`),
-        fetchApi(`/sos/${sosId}`)
-      ]);
-      if (userRes.email) setOtherUserEmail(userRes.email);
-      if (sosRes.id) setSosDetails(sosRes as AnimalSOS);
+    if (!supabase || !user) return;
+    
+    // Fetch other user profile
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', otherUserId)
+      .single();
+    if (profileData) setOtherUser(profileData as Profile);
+
+    // Fetch SOS details
+    const { data: sosData } = await supabase
+      .from('animal_sos')
+      .select('*')
+      .eq('id', sosId)
+      .single();
+    if (sosData) setSosDetails(sosData as AnimalSOS);
+
+    // Fetch messages
+    const { data: msgsData } = await supabase
+      .from('messages')
+      .select('*, sender:profiles!sender_id(*)')
+      .eq('sos_id', sosId)
+      .order('created_at', { ascending: true });
       
-      await fetchMessages();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    if (msgsData) setMessages(msgsData as Message[]);
+    setLoading(false);
   };
 
-  const fetchMessages = async () => {
-    try {
-      const data = await fetchApi(`/messages?sos_id=${sosId}`);
-      if (Array.isArray(data)) setMessages(data);
-    } catch (e) {
-      console.error(e);
-    }
+  const subscribeToMessages = () => {
+    if (!supabase) return;
+    
+    const subscription = supabase
+      .channel('messages_channel')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'messages',
+        filter: `sos_id=eq.${sosId}`
+      }, (payload) => {
+        // Fetch the sender profile for the new message
+        fetchChatData(); // Quick way to refresh with relations
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !otherUserId || !sosId) return;
+    if (!newMessage.trim() || !user || !otherUserId || !sosId || !supabase) return;
 
     const messageContent = newMessage;
     setNewMessage('');
 
-    try {
-      await fetchApi('/messages', {
-        method: 'POST',
-        body: JSON.stringify({
+    const { error } = await supabase
+      .from('messages')
+      .insert([
+        {
+          sender_id: user.id,
           receiver_id: otherUserId,
           sos_id: sosId,
           content: messageContent
-        })
-      });
-      // Fetch immediately after sending
-      await fetchMessages();
-    } catch (error) {
+        }
+      ]);
+
+    if (error) {
       console.error('Error sending message:', error);
     }
   };
@@ -103,14 +127,14 @@ export default function Messages() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 h-[calc(100vh-4rem)] flex flex-col">
-      <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 hover:text-gray-900 mb-4 transition w-fit">
+      <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 hover:text-gray-900 mb-4 transition">
         <ArrowLeft className="h-4 w-4 mr-1" /> Back
       </button>
 
       <div className="bg-white rounded-t-xl shadow-sm border border-gray-100 p-4 border-b-0 flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-900">
-            Chat with {otherUserEmail?.split('@')[0] || 'User'}
+            Chat with {otherUser?.email?.split('@')[0] || 'User'}
           </h2>
           <p className="text-xs text-gray-500">
             Regarding SOS in {sosDetails?.region}, {sosDetails?.country}

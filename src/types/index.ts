@@ -13,7 +13,7 @@ export type AnimalSOS = {
   description: string;
   created_at: string;
   status: 'open' | 'resolved';
-  profiles?: { email: string };
+  profiles?: Profile;
 };
 
 export type Message = {
@@ -23,5 +23,5 @@ export type Message = {
   sos_id: string;
   content: string;
   created_at: string;
-  sender?: { email: string };
+  sender?: Profile;
 };
