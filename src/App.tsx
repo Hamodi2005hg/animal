@@ -13,6 +13,7 @@ import Messages from './pages/Messages';
 import MyCalls from './pages/MyCalls';
 import SOSDetails from './pages/SOSDetails';
 import Settings from './pages/Settings';
+import UserProfile from './pages/UserProfile';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/create-sos" element={<CreateSOS />} />
             <Route path="/sos/:id" element={<SOSDetails />} />
+            <Route path="/user/:id" element={<UserProfile />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/my-calls" element={<MyCalls />} />
             <Route path="/settings" element={<Settings />} />

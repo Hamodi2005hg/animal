@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { AnimalSOS } from '../types';
 import { useAuth } from '../components/AuthProvider';
 import { MapPin, Clock, MessageCircle, AlertCircle, Navigation, Heart, ChevronRight, ChevronLeft, X, ArrowUp, ArrowDown } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 
 export default function Home() {
   const [sosList, setSosList] = useState<AnimalSOS[]>([]);
@@ -262,15 +262,17 @@ export default function Home() {
                 <div className="p-4 flex flex-col">
                   {/* Header */}
                   <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 flex-wrap">
-                     {sos.profiles?.avatar_url ? (
-                       <img src={sos.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100" />
-                     ) : (
-                       <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-[10px]">
-                         {(sos.profiles?.username || sos.profiles?.email || 'U').charAt(0).toUpperCase()}
-                       </div>
-                     )}
-                     <span className="font-bold text-gray-900">{sos.profiles?.username || sos.profiles?.email?.split('@')[0] || 'user'}</span>
-                     <span>•</span>
+                     <Link to={`/user/${sos.user_id}`} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                       {sos.profiles?.avatar_url ? (
+                         <img src={sos.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100" />
+                       ) : (
+                         <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-[10px]">
+                           {(sos.profiles?.username || sos.profiles?.email || 'U').charAt(0).toUpperCase()}
+                         </div>
+                       )}
+                       <span className="font-bold text-gray-900 dark:text-gray-100">{sos.profiles?.username || sos.profiles?.email?.split('@')[0] || 'user'}</span>
+                     </Link>
+                     <span className="dark:text-gray-500">•</span>
                      {sos.animal_type && (
                        <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">{sos.animal_type}</span>
                      )}

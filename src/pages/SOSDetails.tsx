@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { AnimalSOS, SOSComment } from '../types';
 import { useAuth } from '../components/AuthProvider';
@@ -137,21 +137,23 @@ export default function SOSDetails() {
         Back to Feed
       </button>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
-         <div className="flex items-center gap-3 mb-4">
-           {sos.profiles?.avatar_url ? (
-             <img src={sos.profiles.avatar_url} alt="User" className="w-10 h-10 rounded-full object-cover bg-gray-100" />
-           ) : (
-             <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm">
-               {(sos.profiles?.username || sos.profiles?.email || 'U').charAt(0).toUpperCase()}
-             </div>
-           )}
-           <div>
-             <h1 className="text-xl font-bold">{sos.animal_type ? `${sos.animal_type} SOS in ${sos.region}` : `SOS in ${sos.region}`}</h1>
-             <p className="text-xs text-gray-500">Posted by {sos.profiles?.username || sos.profiles?.email?.split('@')[0] || 'user'} • {new Date(sos.created_at).toLocaleDateString()}</p>
-           </div>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-8">
+         <div className="mb-4">
+           <h1 className="text-2xl font-bold mb-3 dark:text-white">{sos.animal_type ? `${sos.animal_type} SOS in ${sos.region}` : `SOS in ${sos.region}`}</h1>
+           <Link to={`/user/${sos.user_id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity w-fit">
+             {sos.profiles?.avatar_url ? (
+               <img src={sos.profiles.avatar_url} alt="User" className="w-8 h-8 rounded-full object-cover bg-gray-100" />
+             ) : (
+               <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                 {(sos.profiles?.username || sos.profiles?.email || 'U').charAt(0).toUpperCase()}
+               </div>
+             )}
+             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+               Posted by {sos.profiles?.username || sos.profiles?.email?.split('@')[0] || 'user'} <span className="font-normal text-gray-500 mx-1">•</span> <span className="font-normal text-gray-500">{new Date(sos.created_at).toLocaleDateString()}</span>
+             </p>
+           </Link>
          </div>
-         <p className="text-gray-800 whitespace-pre-wrap">{sos.description}</p>
+         <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{sos.description}</p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -164,15 +166,17 @@ export default function SOSDetails() {
             rootComments.map(comment => (
               <div key={comment.id} className="border-b border-gray-50 pb-4">
                 <div className="flex items-center gap-2 mb-1">
-                  {comment.profiles?.avatar_url ? (
-                    <img src={comment.profiles.avatar_url} alt="User" className="w-8 h-8 rounded-full object-cover bg-gray-100" />
-                  ) : (
-                    <div className="h-8 w-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold text-sm">
-                      {(comment.profiles?.username || comment.profiles?.email || 'U').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className="font-medium text-sm">{comment.profiles?.username || comment.profiles?.email?.split('@')[0] || 'User'}</span>
-                  <span className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
+                  <Link to={`/user/${comment.user_id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                    {comment.profiles?.avatar_url ? (
+                      <img src={comment.profiles.avatar_url} alt="User" className="w-8 h-8 rounded-full object-cover bg-gray-100" />
+                    ) : (
+                      <div className="h-8 w-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold text-sm">
+                        {(comment.profiles?.username || comment.profiles?.email || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="font-medium text-sm dark:text-gray-200">{comment.profiles?.username || comment.profiles?.email?.split('@')[0] || 'User'}</span>
+                  </Link>
+                  <span className="text-xs text-gray-400">• {new Date(comment.created_at).toLocaleDateString()}</span>
                 </div>
                 <p className="text-gray-700 pl-10 mb-2 text-sm">{comment.content}</p>
                 
@@ -189,15 +193,17 @@ export default function SOSDetails() {
                     {getReplies(comment.id).map(reply => (
                       <div key={reply.id}>
                         <div className="flex items-center gap-2 mb-1">
-                          {reply.profiles?.avatar_url ? (
-                            <img src={reply.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100" />
-                          ) : (
-                            <div className="h-6 w-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-bold text-xs">
-                              {(reply.profiles?.username || reply.profiles?.email || 'U').charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span className="font-medium text-sm text-gray-700">{reply.profiles?.username || reply.profiles?.email?.split('@')[0] || 'User'}</span>
-                          <span className="text-xs text-gray-400">{new Date(reply.created_at).toLocaleDateString()}</span>
+                          <Link to={`/user/${reply.user_id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                            {reply.profiles?.avatar_url ? (
+                              <img src={reply.profiles.avatar_url} alt="User" className="w-6 h-6 rounded-full object-cover bg-gray-100" />
+                            ) : (
+                              <div className="h-6 w-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-bold text-xs">
+                                {(reply.profiles?.username || reply.profiles?.email || 'U').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="font-medium text-sm text-gray-700 dark:text-gray-300">{reply.profiles?.username || reply.profiles?.email?.split('@')[0] || 'User'}</span>
+                          </Link>
+                          <span className="text-xs text-gray-400">• {new Date(reply.created_at).toLocaleDateString()}</span>
                         </div>
                         <p className="text-gray-600 text-sm pl-8">{reply.content}</p>
                       </div>
