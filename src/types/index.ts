@@ -1,3 +1,22 @@
+export type SubredditType = 
+  | 'r/RescueEmergency'   // قسم الطوارئ والإنقاذ
+  | 'r/SuccessStories'    // مجتمعات التبني والرعاية اللاحقة (قبل وبعد)
+  | 'r/Cats'              // مربو وعشاق القطط
+  | 'r/Dogs'              // مربو وعشاق الكلاب
+  | 'r/Birds'             // العناية بالطيور
+  | 'r/VetAdvice'         // استشارات بيطرية مجانية
+  | 'r/FunnyPets'         // يوميات ومواقف طريفة
+  | 'r/PetMarketplace';   // سوق المساعدات والخدمات المصغر
+
+export type UrgencyLevel = 'critical' | 'high' | 'medium' | 'low';
+
+export type MarketplaceType = 
+  | 'food_donation'       // تبرع ببقايا طعام صالحة
+  | 'vet_clinic'          // كشف/علاج مجاني أو مخفض
+  | 'supplies'            // أدوية ومستلزمات مجانية
+  | 'transport'           // تطوع نقل وإسعاف
+  | 'other';
+
 export type Profile = {
   id: string;
   email: string;
@@ -7,6 +26,9 @@ export type Profile = {
   facebook_url?: string;
   instagram_url?: string;
   twitter_url?: string;
+  karma?: number;
+  rescue_badge?: string;
+  rescuer_role?: string;
   created_at: string;
 };
 
@@ -21,6 +43,14 @@ export type AnimalSOS = {
   description: string;
   created_at: string;
   status: 'open' | 'resolved';
+  // Reddit-inspired fields
+  title?: string;
+  subreddit?: SubredditType;
+  urgency?: UrgencyLevel;
+  is_anonymous?: boolean;
+  before_after_image_url?: string; // For Success Stories (After photo)
+  marketplace_type?: MarketplaceType; // For Pet Marketplace
+  // Computed voting & profile stats
   vote_score?: number;
   upvotes?: number;
   downvotes?: number;
@@ -44,6 +74,7 @@ export type SOSComment = {
   parent_id: string | null;
   content: string;
   created_at: string;
+  is_anonymous?: boolean;
   profiles?: Profile;
   replies?: SOSComment[]; // For nested UI
 };

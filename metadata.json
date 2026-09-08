@@ -1,6 +1,6 @@
 {
   "name": "Stray Animal SOS",
-  "description": "A platform to report and help stray animals.",
+  "description": "A community-driven Reddit platform dedicated exclusively to stray animal emergency rescue, adoption success stories, pet communities, and micro-marketplace.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
